@@ -12,7 +12,7 @@ from kivy_cube_app.utils.constants import LENGTH_OF_SIDE
 class TestField(unittest.TestCase):
 
     def setUp(self):
-        self.field = Field()
+        self.field = Field(N=LENGTH_OF_SIDE)
 
     def test_initial_board_state(self):
         for x in range(LENGTH_OF_SIDE):

@@ -13,8 +13,8 @@ from kivy_cube_app.utils.constants import LENGTH_OF_SIDE
 class TestCubeLogic(unittest.TestCase):
 
     def setUp(self):
-        self.field = FieldAdapter()
-        self.logic = CubeLogic(self.field)
+        self.field = FieldAdapter(N=LENGTH_OF_SIDE)
+        self.logic = CubeLogic(self.field, N=LENGTH_OF_SIDE)
 
     def test_initial_state(self):
         for i in range(LENGTH_OF_SIDE):

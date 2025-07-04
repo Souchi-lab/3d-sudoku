@@ -12,7 +12,7 @@ from kivy_cube_app.utils.constants import LENGTH_OF_SIDE
 class TestGameState(unittest.TestCase):
 
     def setUp(self):
-        self.gs = GameState()
+        self.gs = GameState(N=LENGTH_OF_SIDE)
 
     def test_initial_state(self):
         self.assertEqual(self.gs.current_player_id, 1)
@@ -22,7 +22,7 @@ class TestGameState(unittest.TestCase):
         self.assertEqual(self.gs.players[2].score, 0)
 
     def test_create_nums(self):
-        nums = self.gs.create_nums()
+        nums = self.gs.create_nums([])
         self.assertEqual(len(nums), LENGTH_OF_SIDE**3)
         for i in range(1, LENGTH_OF_SIDE + 1):
             self.assertEqual(nums.count(i), LENGTH_OF_SIDE**2)
