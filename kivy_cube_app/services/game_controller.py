@@ -61,6 +61,7 @@ class GameController:
             self._number_skip_notification_callback(skipped_number)
 
     def _update_timer(self, dt):
+        self.state.update_timer()
         if self._timer_update_callback:
             self._timer_update_callback(self.state.get_elapsed_time())
 
@@ -74,8 +75,25 @@ class GameController:
             self._score_update_callback() # Call the score update callback
         if self.state.is_game_over(self.logic):
             self.show_game_over_popup()
+        else:
+            # If the game is not over, check if it's CPU's turn
+            if self.state.current_player_id == CPU_PLAYER_ID:
+                self._handle_cpu_turn()
+
         if self._timer_update_callback:
             self._timer_update_callback(self.state.get_elapsed_time()) # Update timer after successful input
+
+    def _handle_cpu_turn(self):
+        # CPU makes a move
+        self.cpu_player.make_move(self.state.current_number)
+        self.state.next_turn() # Add this line to switch to the next player
+        # After CPU makes a move, check if the game is over again
+        if self.state.is_game_over(self.logic):
+            self.show_game_over_popup()
+        else:
+            # If game is not over, update score/status for the next player
+            if self._score_update_callback:
+                self._score_update_callback()
 
     def show_game_over_popup(self):
         p1_score = self.state.players[1].score

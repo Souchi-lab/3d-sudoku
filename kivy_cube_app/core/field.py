@@ -175,6 +175,12 @@ class Field:
         # Noneを0に変換して返す
         return [[[0 if cell is None else cell for cell in row] for row in plane] for plane in self.board]
 
+    def get_number(self, x: int, y: int, z: int):
+        """指定された座標のセルの値を取得する (0-indexed)"""
+        if 0 <= x < self.N and 0 <= y < self.N and 0 <= z < self.N:
+            return self.board[x][y][z]
+        return None
+
     def get_completed_lines_and_slices(self) -> dict:
         """現在の盤面で完成しているラインと層のリストを返す"""
         completed = {'lines': [], 'slices': []}

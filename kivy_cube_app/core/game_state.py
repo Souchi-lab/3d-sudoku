@@ -12,6 +12,8 @@ class Player:
         self.consecutive_successes = 0 # 連続成功回数
 
     def add_score(self, value=1):
+        if value < 0:
+            raise ValueError("Score value cannot be negative")
         self.score += value
 
     def reset_score(self):
@@ -93,9 +95,13 @@ class GameState:
                 for _ in range(count_per_number)]
 
         # Remove the numbers that are already placed on the board
+        # Remove one instance of each hint value from the sequence.
         for cell in initial_filled_cells:
-            if cell['value'] in _nums:
+            try:
                 _nums.remove(cell['value'])
+            except ValueError:
+                # This should not happen if initial_filled_cells are valid hints
+                self.logger.warning(f"Hint value {cell['value']} not found in sequence during removal.")
 
         shuffle(_nums)
         return _nums
@@ -160,10 +166,7 @@ class GameState:
 
     def is_game_over(self, cube_logic) -> bool:
         # 全てのセルが埋まったかどうか
-        all_cells_filled = all(cube_logic.get_number(i, j, k) is not None
-                               for i in range(self.N)
-                               for j in range(self.N)
-                               for k in range(self.N))
+        all_cells_filled = cube_logic.all_cells_filled()
 
         # 現在の数字を置ける場所が全くない場合
         no_valid_placement = not cube_logic.can_place_number(self.current_number)
@@ -220,9 +223,9 @@ class GameState:
             self.skip_count += 1
             if self.is_ta_mode:
                 self.subtract_time(30)
-                self.add_score(-20)
+                self.players[self.current_player_id].score -= 20
             else:
-                self.add_score(-20)
+                self.players[self.current_player_id].score -= 20
             self.next_turn()
 
     def set_number_skip_callback(self, callback_fn):

@@ -1,22 +1,26 @@
-# Pythonキャッシュ
+# Byte-compiled / optimized / DLL files
 __pycache__/
-*.py[cod]
+*.pyc
+*.pyd
 *.pyo
-
-# pytestキャッシュ
+*.egg-info/
 .pytest_cache/
 
-# ログ・出力ファイル
+# Logs and output files
 *.log
+log/*.log.*
 log/
 *.csv
 *.txt
-rank.db
+.coverage
+tests/results/
 
-# 仮想環境（使ってる場合）
-.venv/
-env/
+# Database files
+*.db
 
-# IDE設定（VSCode/PyCharmなど使ってれば）
-.vscode/
-.idea/
+# OS generated files
+.DS_Store
+.localized
+Thumbs.db
+ehthumbs.db
+Desktop.ini

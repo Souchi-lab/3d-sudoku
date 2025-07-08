@@ -177,10 +177,12 @@ class Cube3DWidget(BoxLayout):
             side   = LENGTH_OF_SIDE
             rect_w = cvs.width  / side
             rect_h = cvs.height / side
+            self.logic.field.logger.debug(f"DEBUG: cvs.x={cvs.x}, cvs.y={cvs.y}, cvs.width={cvs.width}, cvs.height={cvs.height}")
+            self.logic.field.logger.debug(f"DEBUG: rect_w={rect_w}, rect_h={rect_h}")
             # タッチ位置から列・行を取得
             col = int((touch.x - cvs.x) // rect_w)
             row = int((touch.y - cvs.y) // rect_h)
-            self.logic.field.logger.debug(f"Calculated col: {col}, row: {row}")
+            self.logic.field.logger.debug(f"DEBUG: touch.x={touch.x}, touch.y={touch.y}, col={col}, row={row}")
             # 範囲チェック
             if 0 <= col < side and 0 <= row < side:
                 # スライス軸に応じて(i,j,k)を決定

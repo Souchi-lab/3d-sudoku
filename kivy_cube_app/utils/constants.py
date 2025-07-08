@@ -34,7 +34,7 @@ LOG_FILE_PATH : str = './log/'
 LOG_FILE_NAME : str = '4cube.log'
 LOG_ENCODE: str = 'utf-8'
 APP_LOG_FORMAT: str = '%(asctime)s:%(levelname)s:%(game_id)s:%(message)s'
-CONSOLE_LOG_FORMAT: str = '%(message)s'
+CONSOLE_LOG_FORMAT: str = '%(asctime)s:%(levelname)s:%(name)s:%(pathname)s:%(lineno)d:%(message)s'
 LOG_MAX_BYTES: int = 1024 * 1024 * 10 # 10MB
 LOG_BACKUP_COUNT: int = 10
 

@@ -32,6 +32,9 @@ class AppLogger :
     def __set_logger(self) -> None:
         logger = logging.getLogger(self.NAME)
         if not logger.handlers:  # Check if handlers are already added
+            # Clear existing handlers to prevent duplicate handlers in subsequent initializations
+            for handler in logger.handlers[:]:
+                logger.removeHandler(handler)
             sh = logging.StreamHandler()
             logger.addHandler(sh)
             fh = RotatingFileHandler(LOG_FILE_PATH + LOG_FILE_NAME,
@@ -63,6 +66,9 @@ class ConsoleLogger :
     def __set_logger(self) -> None:
         logger = logging.getLogger(self.NAME)
         if not logger.handlers:  # Check if handlers are already added
+            # Clear existing handlers to prevent duplicate handlers in subsequent initializations
+            for handler in logger.handlers[:]:
+                logger.removeHandler(handler)
             sh = logging.StreamHandler()
             logger.addHandler(sh)
             fh = RotatingFileHandler(LOG_FILE_PATH + LOG_FILE_NAME, 

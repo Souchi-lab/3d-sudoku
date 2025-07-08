@@ -35,14 +35,15 @@ class CubeLogic:
             self._last_error_message = "Invalid coordinates."
             return False
 
-        if self._numbers[i][j][k] is not None and self._numbers[i][j][k] != value:
-            self._last_error_message = "Invalid input: already filled."
+        if self._numbers[i][j][k] is not None:
+            self._last_error_message = "Invalid input: Already filled."
             return False
 
         pos = [i+1, j+1, k+1]
         ok, message = self.field.check(pos, value)
         if ok:
             self._numbers[i][j][k] = value
+            self.field.set_point(pos, value)
             self.field.reflect(pos, value)
             self.logger.info(f"Placed {value} at ({i}, {j}, {k})")
             return True
@@ -56,6 +57,7 @@ class CubeLogic:
     def reset(self):
         self._numbers = [[[None for _ in range(self.N)] for _ in range(self.N)] for _ in range(self.N)]
         self._last_error_message = ""
+        self.field.reset()
 
     def can_place_number(self, value: int) -> bool:
         """
@@ -71,3 +73,12 @@ class CubeLogic:
                         if ok:
                             return True
         return False
+
+    def all_cells_filled(self) -> bool:
+        """
+        全てのセルが埋まっているかどうかをチェックします。
+        """
+        return all(self._numbers[i][j][k] is not None
+                   for i in range(self.N)
+                   for j in range(self.N)
+                   for k in range(self.N))

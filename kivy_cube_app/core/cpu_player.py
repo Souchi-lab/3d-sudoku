@@ -10,6 +10,8 @@ class CpuPlayer:
         self.N = N
 
     def make_move(self, current_number):
+        if not (1 <= current_number <= self.N):
+            raise ValueError(f"Invalid current_number: {current_number}. Must be between 1 and {self.N}")
         possible_moves = []
         val = current_number
         for i in range(self.N):
@@ -37,16 +39,16 @@ class CpuPlayer:
                 # Fieldのメソッドを直接呼び出すことでシミュレーションが可能。
 
                 # 仮想的なボードの状態をコピー
-                original_board = copy.deepcopy(self.field.f.board)
-                original_candidates = copy.deepcopy(self.field.f.candidates)
+                original_board = copy.deepcopy(self.field.board)
+                original_candidates = copy.deepcopy(self.field.candidates)
 
                 # 仮に手を打つ
-                self.field.f.set_point([i+1, j+1, k+1], val)
-                self.field.f.reflect([i+1, j+1, k+1], val)
+                self.field.set_point([i+1, j+1, k+1], val)
+                self.field.reflect([i+1, j+1, k+1], val)
 
                 # 手を評価する
                 current_score = 0
-                completed_info = self.field.f.get_completed_lines_and_slices()
+                completed_info = self.field.get_completed_lines_and_slices()
                 current_score += len(completed_info['lines']) * 10 # 完成ラインは高得点
                 current_score += len(completed_info['slices']) * 100 # 完成層はさらに高得点
 
@@ -57,17 +59,17 @@ class CpuPlayer:
                 # ラインのリーチチェック
                 for x_idx in range(self.N):
                     for y_idx in range(self.N):
-                        empty, missing = self.field.f.get_line_status('z', x_idx, y_idx)
+                        empty, missing = self.field.get_line_status('z', x_idx, y_idx)
                         if empty == 1 and current_number in missing:
                             one_away_lines += 1
                 for y_idx in range(self.N):
                     for z_idx in range(self.N):
-                        empty, missing = self.field.f.get_line_status('x', y_idx, z_idx)
+                        empty, missing = self.field.get_line_status('x', y_idx, z_idx)
                         if empty == 1 and current_number in missing:
                             one_away_lines += 1
                 for x_idx in range(self.N):
                     for z_idx in range(self.N):
-                        empty, missing = self.field.f.get_line_status('y', x_idx, z_idx)
+                        empty, missing = self.field.get_line_status('y', x_idx, z_idx)
                         if empty == 1 and current_number in missing:
                             one_away_lines += 1
                 
@@ -77,37 +79,37 @@ class CpuPlayer:
                         is_slice_one_away = False
                         if axis == 'x': # X軸スライス (x=index固定)
                             for j_fixed in range(self.N):
-                                empty, missing = self.field.f.get_line_status('z', index, j_fixed)
+                                empty, missing = self.field.get_line_status('z', index, j_fixed)
                                 if empty == 1 and current_number in missing:
                                     is_slice_one_away = True
                                     break
                             if not is_slice_one_away:
                                 for k_fixed in range(self.N):
-                                    empty, missing = self.field.f.get_line_status('y', index, k_fixed)
+                                    empty, missing = self.field.get_line_status('y', index, k_fixed)
                                     if empty == 1 and current_number in missing:
                                         is_slice_one_away = True
                                         break
                         elif axis == 'y': # Y軸スライス (y=index固定)
                             for i_fixed in range(self.N):
-                                empty, missing = self.field.f.get_line_status('z', i_fixed, index)
+                                empty, missing = self.field.get_line_status('z', i_fixed, index)
                                 if empty == 1 and current_number in missing:
                                     is_slice_one_away = True
                                     break
                             if not is_slice_one_away:
                                 for k_fixed in range(self.N):
-                                    empty, missing = self.field.f.get_line_status('x', index, k_fixed)
+                                    empty, missing = self.field.get_line_status('x', index, k_fixed)
                                     if empty == 1 and current_number in missing:
                                         is_slice_one_away = True
                                         break
                         elif axis == 'z': # Z軸スライス (z=index固定)
                             for i_fixed in range(self.N):
-                                empty, missing = self.field.f.get_line_status('y', i_fixed, index)
+                                empty, missing = self.field.get_line_status('y', i_fixed, index)
                                 if empty == 1 and current_number in missing:
                                     is_slice_one_away = True
                                     break
                             if not is_slice_one_away:
                                 for j_fixed in range(self.N):
-                                    empty, missing = self.field.f.get_line_status('x', j_fixed, index)
+                                    empty, missing = self.field.get_line_status('x', j_fixed, index)
                                     if empty == 1 and current_number in missing:
                                         is_slice_one_away = True
                                         break
@@ -118,8 +120,8 @@ class CpuPlayer:
                 current_score += one_away_lines * 5 # リーチラインは中程度の得点
                 current_score += one_away_slices * 50 # リーチ層は高得点
                 # 評価後、ボードの状態を元に戻す
-                self.field.f.board = original_board
-                self.field.f.candidates = original_candidates
+                self.field.board = original_board
+                self.field.candidates = original_candidates
 
                 if current_score > best_score:
                     best_score = current_score
