@@ -1,5 +1,5 @@
 import random
-import pyrr
+
 
 def scramble_board(base_board: list[list[list[int]]] | None, N: int, seed: int | None = None):
     """完成盤テンプレ (N×N×N) を 3‑Layer ランダマイズして返す。"""
@@ -17,18 +17,20 @@ def scramble_board(base_board: list[list[list[int]]] | None, N: int, seed: int |
                     base_board[i][j][k] = (i + j + k) % N + 1
 
     # ① 数字置換
-    perm = list(range(1, N + 1)); rnd.shuffle(perm)
+    perm = list(range(1, N + 1))
+    rnd.shuffle(perm)
     repl = {i + 1: perm[i] for i in range(N)}
 
     # ② 軸シャッフル + 反転
-    axes = ['x', 'y', 'z']; rnd.shuffle(axes)
+    axes = ["x", "y", "z"]
+    rnd.shuffle(axes)
     flips = [rnd.choice([1, -1]) for _ in range(3)]
 
     # ③ 層スライド
     shifts = [rnd.randrange(N) for _ in range(3)]
 
     def map_pos(i, j, k):
-        v = {'x': i, 'y': j, 'z': k}
+        v = {"x": i, "y": j, "z": k}
         a, b, c = v[axes[0]], v[axes[1]], v[axes[2]]
         a = (flips[0] * (a + shifts[0])) % N
         b = (flips[1] * (b + shifts[1])) % N
@@ -46,7 +48,7 @@ def scramble_board(base_board: list[list[list[int]]] | None, N: int, seed: int |
                 if original_value is not None:
                     mapped_value = repl[original_value]
                 else:
-                    mapped_value = None # Noneの場合はそのままNone
+                    mapped_value = None  # Noneの場合はそのままNone
 
                 x, y, z = map_pos(i, j, k)
                 board[x][y][z] = mapped_value

@@ -1,7 +1,6 @@
-from .field import Field
-import logging
-from ..utils.constants import *
 from ..utils.logger import AppLogger
+from .field import Field
+
 
 class FieldAdapter:
     def __init__(self, N, logic=None, initial_data=None):

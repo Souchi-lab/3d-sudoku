@@ -1,16 +1,17 @@
-from kivy.uix.popup import Popup
-from kivy.uix.label import Label
-from kivy.uix.button import Button
-from kivy.uix.boxlayout import BoxLayout
 from kivy.metrics import sp
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.button import Button
+from kivy.uix.label import Label
+from kivy.uix.popup import Popup
+
 
 class RuleExplanationPopup(Popup):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.title = 'Game Rules'
+        self.title = "Game Rules"
         self.size_hint = (0.9, 0.9)
 
-        layout = BoxLayout(orientation='vertical', padding=sp(10), spacing=sp(10))
+        layout = BoxLayout(orientation="vertical", padding=sp(10), spacing=sp(10))
 
         rules_text = """
         [b]3D 対戦数独アプリ[/b]
@@ -44,12 +45,13 @@ class RuleExplanationPopup(Popup):
         - 数字を配置するごとにスコアが加算されます。
         - 最終的なスコアで勝敗が決まります。
         """
-        rules_label = Label(text=rules_text, markup=True, font_size=sp(14),
-                            halign='left', valign='top', size_hint_y=None)
-        rules_label.bind(texture_size=rules_label.setter('size'))
+        rules_label = Label(
+            text=rules_text, markup=True, font_size=sp(14), halign="left", valign="top", size_hint_y=None
+        )
+        rules_label.bind(texture_size=rules_label.setter("size"))
         layout.add_widget(rules_label)
 
-        close_button = Button(text='Close', size_hint_y=None, height=sp(40))
+        close_button = Button(text="Close", size_hint_y=None, height=sp(40))
         close_button.bind(on_release=self.dismiss)
         layout.add_widget(close_button)
 

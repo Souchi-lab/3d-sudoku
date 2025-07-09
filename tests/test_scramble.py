@@ -1,16 +1,15 @@
-import unittest
-import sys
 import os
-import random
+import sys
+import unittest
 
 # Add the project root to the Python path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from kivy_cube_app.core.scramble import scramble_board
 from kivy_cube_app.utils.constants import LENGTH_OF_SIDE
 
-class TestScramble(unittest.TestCase):
 
+class TestScramble(unittest.TestCase):
     def test_scramble_board_seed_reproducibility(self):
         # SC-01: seed再現
         seed = 42
@@ -45,5 +44,6 @@ class TestScramble(unittest.TestCase):
                 line_values = [board[x][y][z] for z in range(N)]
                 self.assertEqual(len(set(line_values)), N)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

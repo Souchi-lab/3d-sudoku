@@ -1,40 +1,43 @@
-import unittest
-import sys
 import os
+import sys
+import unittest
 from unittest.mock import MagicMock, patch
 
 # Add the project root to the Python path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from tests.kivy_mock_helper import mock_kivy_modules
+
 mock_kivy_modules()
 
 from kivy_cube_app.services.game_controller import GameController
-from kivy_cube_app.utils.constants import LENGTH_OF_SIDE, CPU_PLAYER_ID
+from kivy_cube_app.utils.constants import LENGTH_OF_SIDE
+
 
 class TestGameController(unittest.TestCase):
-
     def setUp(self):
         self.mock_root_widget = MagicMock()
         self.gc = GameController(self.mock_root_widget, N=LENGTH_OF_SIDE)
 
-    @patch('kivy_cube_app.services.game_controller.AppLogger')
+    @patch("kivy_cube_app.services.game_controller.AppLogger")
     def test_log_board(self, MockAppLogger):
         mock_logger_instance = MockAppLogger.return_value
         mock_logger = mock_logger_instance.get_logger.return_value
 
         # Re-initialize GameController after patching AppLogger
         gc = GameController(self.mock_root_widget, N=LENGTH_OF_SIDE)
-        gc.app_logger_instance = mock_logger_instance # Ensure gc uses the mocked logger instance
-        gc.logger = mock_logger # Ensure gc uses the mocked logger
+        gc.app_logger_instance = mock_logger_instance  # Ensure gc uses the mocked logger instance
+        gc.logger = mock_logger  # Ensure gc uses the mocked logger
 
         # Mock the field's get_all_numbers to return a predictable board
-        gc.field.get_all_numbers = MagicMock(side_effect=lambda: [
-            [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
-            [[10, 11, 12], [13, 14, 15], [16, 17, 18]],
-            [[19, 20, 21], [22, 23, 24], [25, 26, 27]]
-        ])
-        gc.state.N = 3 # Ensure N is set for the mock state
+        gc.field.get_all_numbers = MagicMock(
+            side_effect=lambda: [
+                [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
+                [[10, 11, 12], [13, 14, 15], [16, 17, 18]],
+                [[19, 20, 21], [22, 23, 24], [25, 26, 27]],
+            ]
+        )
+        gc.state.N = 3  # Ensure N is set for the mock state
 
         gc.log_board()
 
@@ -75,12 +78,12 @@ class TestGameController(unittest.TestCase):
         mock_callback.assert_called_once_with(skipped_number)
 
     def test_get_initial_filled(self):
-        self.gc.state.initial_filled_cells = [{"pos": [0,0,0], "value": 1}]
+        self.gc.state.initial_filled_cells = [{"pos": [0, 0, 0], "value": 1}]
         result = self.gc.get_initial_filled()
-        self.assertEqual(result, [{"pos": [0,0,0], "value": 1}])
+        self.assertEqual(result, [{"pos": [0, 0, 0], "value": 1}])
 
-    @patch('kivy_cube_app.services.game_controller.Popup')
-    @patch('kivy_cube_app.services.game_controller.App')
+    @patch("kivy_cube_app.services.game_controller.Popup")
+    @patch("kivy_cube_app.services.game_controller.App")
     def test_show_game_over_popup_player1_wins(self, MockApp, MockPopup):
         # Mock App.get_running_app().stop()
         mock_app_instance = MockApp.get_running_app.return_value
@@ -119,7 +122,7 @@ class TestGameController(unittest.TestCase):
         # A better approach is to test the side effects of the popup, like reset_game being called.
 
         # Verify the text content of the Label in the popup
-        label_text = MockPopup.call_args[1]['content'].children[0].text # Accessing children by index
+        label_text = MockPopup.call_args[1]["content"].children[0].text  # Accessing children by index
         self.assertIn("Winner: Player 1", label_text)
         self.assertIn("P1: 100 - P2: 50", label_text)
 
@@ -137,8 +140,9 @@ class TestGameController(unittest.TestCase):
         # and focus on the outcomes of show_game_over_popup.
 
         # Test on_success_input
-    @patch('kivy_cube_app.services.game_controller.GameController.show_game_over_popup')
-    @patch('kivy_cube_app.core.game_state.GameState.get_elapsed_time')
+
+    @patch("kivy_cube_app.services.game_controller.GameController.show_game_over_popup")
+    @patch("kivy_cube_app.core.game_state.GameState.get_elapsed_time")
     def test_on_success_input(self, mock_get_elapsed_time, mock_show_game_over_popup):
         mock_score_update_callback = MagicMock()
         self.gc.set_score_update_callback(mock_score_update_callback)
@@ -149,7 +153,7 @@ class TestGameController(unittest.TestCase):
         self.gc.state.current_number = 5
         self.gc.state.add_score = MagicMock()
         self.gc.state.next_turn = MagicMock()
-        self.gc.state.is_game_over = MagicMock(side_effect=[False, True]) # Game not over initially, then game over
+        self.gc.state.is_game_over = MagicMock(side_effect=[False, True])  # Game not over initially, then game over
         mock_get_elapsed_time.return_value = 123.45
 
         self.gc.on_success_input()
@@ -157,13 +161,14 @@ class TestGameController(unittest.TestCase):
         self.gc.state.add_score.assert_called_once_with(5)
         self.gc.state.next_turn.assert_called_once()
         mock_score_update_callback.assert_called_once()
-        mock_show_game_over_popup.assert_not_called() # Game not over
+        mock_show_game_over_popup.assert_not_called()  # Game not over
         mock_timer_update_callback.assert_called_once_with(123.45)
 
         # Test when game is over
         self.gc.state.is_game_over.return_value = True
         self.gc.on_success_input()
-        mock_show_game_over_popup.assert_called_once() # Game is over
+        mock_show_game_over_popup.assert_called_once()  # Game is over
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

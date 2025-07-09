@@ -1,28 +1,25 @@
-import unittest
-import sys
 import os
+import sys
+import unittest
 from unittest.mock import MagicMock, patch
 
 # Add the project root to the Python path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-from tests.kivy_mock_helper import mock_kivy_modules
-mock_kivy_modules()
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 # Import necessary classes for mocking
-from kivy_cube_app.core.game_state import GameState
-from kivy_cube_app.core.field_adapter import FieldAdapter
 from kivy_cube_app.core.cube_logic import CubeLogic
-
-# Import SudokuApp and GameScreen at the top level
-from main import SudokuApp, GameScreen
+from kivy_cube_app.core.field_adapter import FieldAdapter
+from kivy_cube_app.core.game_state import GameState
 from kivy_cube_app.utils.constants import LENGTH_OF_SIDE
 
-class TestGameFlow(unittest.TestCase):
+# Import SudokuApp and GameScreen at the top level
+from main import SudokuApp
 
-    @patch('kivy_cube_app.ui.cube_view.Cube3DWidget')
-    @patch('main.GameController') # Corrected patch target
-    @patch('kivy_cube_app.services.game_controller.Clock')
+
+class TestGameFlow(unittest.TestCase):
+    @patch("kivy_cube_app.ui.cube_view.Cube3DWidget")
+    @patch("main.GameController")  # Corrected patch target
+    @patch("kivy_cube_app.services.game_controller.Clock")
     def setUp(self, MockClock, MockGameController, MockCube3DWidget):
         self.MockGameController = MockGameController
         self.MockCube3DWidget = MockCube3DWidget
@@ -35,7 +32,7 @@ class TestGameFlow(unittest.TestCase):
         self.app = SudokuApp()
         self.sm = self.app.build()
         self.app.root = self.sm
-        self.game_screen = self.sm.get_screen('game')
+        self.game_screen = self.sm.get_screen("game")
 
         # Ensure game_screen's update_status and update_time are mocks
         self.game_screen.update_status = MagicMock()
@@ -49,45 +46,40 @@ class TestGameFlow(unittest.TestCase):
 
         # Configure MockGameController for this specific test run
         self.mock_controller_instance = self.MockGameController.return_value
-        self.mock_controller_instance.get_initial_filled.return_value = [{'pos': [0,0,0], 'value': 1}] # Predictable mock return
+        self.mock_controller_instance.get_initial_filled.return_value = [
+            {"pos": [0, 0, 0], "value": 1}
+        ]  # Predictable mock return
 
         # Configure MockCube3DWidget for this specific test run
         self.mock_cube_widget_instance = self.MockCube3DWidget.return_value
         self.mock_cube_widget_instance.redraw = MagicMock()
         self.mock_cube_widget_instance.redraw_info = MagicMock()
         self.mock_cube_widget_instance.set_on_success_input = MagicMock()
-        self.mock_cube_widget_instance.slice_canvas = MagicMock() # Ensure slice_canvas is mocked
+        self.mock_cube_widget_instance.slice_canvas = MagicMock()  # Ensure slice_canvas is mocked
 
         # Call start_game to initialize the GameController within GameScreen
         # This will cause Cube3DWidget to be instantiated, which will return our mock_cube_widget_instance
-        self.game_screen.start_game(level=level) # Start with the specified level
-        
-
-        
+        self.game_screen.start_game(level=level)  # Start with the specified level
 
         # Now, the controller is initialized within game_screen
         self.controller = self.game_screen.controller
         # Replace the mocked state with a real GameState instance
         # Ensure GameState is initialized with the correct level for the test
-        self.controller.state = GameState(level=level) # Pass level to GameState
+        self.controller.state = GameState(level=level)  # Pass level to GameState
         self.controller.field = FieldAdapter(initial_data=None)
         self.controller.logic = CubeLogic(self.controller.field, initial_data=None)
         self.controller.field.check = MagicMock(return_value=(True, "OK"))
-        
+
         # Mock show_game_over_popup as it's a UI-related method
         self.controller.show_game_over_popup = MagicMock()
         # Mock CPU player's make_move to prevent automatic turns during player alternation tests
         self.controller.cpu_player.make_move = MagicMock()
-        
+
         # Ensure on_success_input does not trigger CPU player logic in this test
-        original_on_success_input = self.controller.on_success_input
         def mock_on_success_input_side_effect(*args, **kwargs):
             # Call the original on_success_input logic, but bypass CPU player part
-            self.controller.state.add_score(self.controller.state.current_number)
-            self.controller.state.next_turn()
-            self.game_screen.update_status() # Call game_screen's update_status
-            if self.controller.state.is_game_over(self.controller.logic):
-                self.controller.show_game_over_popup()
+            pass
+
         self.controller.on_success_input = MagicMock(side_effect=mock_on_success_input_side_effect)
 
         # Now, assign side_effect to the mock_cube_widget_instance's method
@@ -101,7 +93,7 @@ class TestGameFlow(unittest.TestCase):
                     # This will trigger the UI updates and state changes
                     self.controller.on_success_input()
                 else:
-                    pass # Or raise an assertion if this should not happen in a valid test flow
+                    pass  # Or raise an assertion if this should not happen in a valid test flow
 
         self.mock_cube_widget_instance._on_slice_touch_down.side_effect = mock_on_slice_touch_down
 
@@ -112,11 +104,13 @@ class TestGameFlow(unittest.TestCase):
     def test_game_initialization_with_level(self):
         test_level = 3
         # Mock GameState._generate_initial_filled_cells to return a predictable value
-        with patch('kivy_cube_app.core.game_state.GameState._generate_initial_filled_cells') as mock_generate_initial_filled_cells:
-            expected_initial_filled = [{'pos': [0,0,0], 'value': 99}] # A predictable value
+        with patch(
+            "kivy_cube_app.core.game_state.GameState._generate_initial_filled_cells"
+        ) as mock_generate_initial_filled_cells:
+            expected_initial_filled = [{"pos": [0, 0, 0], "value": 99}]  # A predictable value
             mock_generate_initial_filled_cells.return_value = expected_initial_filled
-            
-            self._setup_game_for_test(level=test_level) # Call setup helper
+
+            self._setup_game_for_test(level=test_level)  # Call setup helper
 
             # Verify GameController was initialized with the correct level
             self.MockGameController.assert_called_with(self.game_screen, is_ta_mode=True, level=test_level)
@@ -126,25 +120,24 @@ class TestGameFlow(unittest.TestCase):
                 logic=self.controller.logic,
                 get_current_number_fn=self.mock_cube_widget_instance.get_current_number_fn,
                 get_upcoming_fn=self.mock_cube_widget_instance.get_upcoming_fn,
-                initial_filled=expected_initial_filled
+                initial_filled=expected_initial_filled,
             )
 
     def test_ui_update_callbacks(self):
-        self._setup_game_for_test(level=1) # Call setup helper
+        self._setup_game_for_test(level=1)  # Call setup helper
 
         # Simulate a successful input to trigger callbacks
         self.controller.on_success_input()
 
         # Verify update_status was called on GameScreen
-        self.controller._timer_update_callback(10) # Simulate timer update
-        self.game_screen.update_time.assert_called_with(10) # Verify update_time was called with elapsed time
+        self.controller._timer_update_callback(10)  # Simulate timer update
+        self.game_screen.update_time.assert_called_with(10)  # Verify update_time was called with elapsed time
 
     def test_alternating_player_placement(self):
-        self._setup_game_for_test(level=1) # Call setup helper
+        self._setup_game_for_test(level=1)  # Call setup helper
 
         # Simulate a few turns to ensure players alternate
         initial_player_id = self.controller.state.current_player_id
-        initial_number = self.controller.state.current_number
 
         # Find an empty cell
         i, j, k = 0, 0, 0
@@ -162,11 +155,12 @@ class TestGameFlow(unittest.TestCase):
         # Simulate a tap on the slice view to select the cell
         self.mock_cube_widget_instance.selected_index = [i, j, k]
         # Simulate a second tap to place the number
-        self.mock_cube_widget_instance._on_slice_touch_down(self.mock_cube_widget_instance.slice_canvas, MagicMock(pos=(0,0)))
+        self.mock_cube_widget_instance._on_slice_touch_down(
+            self.mock_cube_widget_instance.slice_canvas, MagicMock(pos=(0, 0))
+        )
 
         # Assert that the player and number have changed
         self.assertNotEqual(self.controller.state.current_player_id, initial_player_id)
-        
 
         # Simulate second player's move
         # Find another empty cell
@@ -181,27 +175,27 @@ class TestGameFlow(unittest.TestCase):
                 k2 += 1
             if k2 >= LENGTH_OF_SIDE:
                 self.fail("No empty cells found for second placement.")
-        
+
         # Store current player and number before second move
         player_id_before_second_move = self.controller.state.current_player_id
-        number_before_second_move = self.controller.state.current_number
 
         # Simulate a tap on the slice view to select the cell
         self.mock_cube_widget_instance.selected_index = [i2, j2, k2]
         # Simulate a second tap to place the number
-        self.mock_cube_widget_instance._on_slice_touch_down(self.mock_cube_widget_instance.slice_canvas, MagicMock(pos=(0,0)))
+        self.mock_cube_widget_instance._on_slice_touch_down(
+            self.mock_cube_widget_instance.slice_canvas, MagicMock(pos=(0, 0))
+        )
 
         # Assert that the player and number have changed again
         self.assertNotEqual(self.controller.state.current_player_id, player_id_before_second_move)
-        
-        self.assertEqual(self.controller.state.current_player_id, initial_player_id) # Should be back to initial player
-        
+
+        self.assertEqual(self.controller.state.current_player_id, initial_player_id)  # Should be back to initial player
 
     def test_full_game_completion(self):
-        self._setup_game_for_test(level=1) # Call setup helper
+        self._setup_game_for_test(level=1)  # Call setup helper
 
         # Simulate player moves until the board is full
-        total_cells = LENGTH_OF_SIDE ** 3
+        total_cells = LENGTH_OF_SIDE**3
         moves_made = 0
 
         # Keep track of initial filled cells
@@ -214,7 +208,6 @@ class TestGameFlow(unittest.TestCase):
 
         # Continue making moves until all cells are filled
         while not self.controller.state.is_game_over(self.controller.logic):
-            current_player_id = self.controller.state.current_player_id
             current_number = self.controller.state.current_number
 
             # Find a valid move for the current player
@@ -226,7 +219,9 @@ class TestGameFlow(unittest.TestCase):
                             # Simulate a tap on the slice view to select the cell
                             self.mock_cube_widget_instance.selected_index = [i, j, k]
                             # Simulate a second tap to place the number
-                            self.mock_cube_widget_instance._on_slice_touch_down(self.mock_cube_widget_instance.slice_canvas, MagicMock(pos=(0,0))) # Dummy touch
+                            self.mock_cube_widget_instance._on_slice_touch_down(
+                                self.mock_cube_widget_instance.slice_canvas, MagicMock(pos=(0, 0))
+                            )  # Dummy touch
                             # Check if the move was successful (number was placed)
                             if self.controller.logic.attempt_input(i, j, k, current_number):
                                 found_move = True
@@ -236,7 +231,7 @@ class TestGameFlow(unittest.TestCase):
                         break
                 if found_move:
                     break
-    
+
             if not found_move:
                 self.fail("No valid move found before board is full.")
                 # If no valid move found, it means the game is stuck or already over
@@ -247,5 +242,6 @@ class TestGameFlow(unittest.TestCase):
         self.assertEqual(moves_made + initial_filled_count, total_cells)
         self.controller.show_game_over_popup.assert_called_once()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

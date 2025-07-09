@@ -1,15 +1,14 @@
-
-import unittest
-import sys
 import os
+import sys
+import unittest
 
 # Add the project root to the Python path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from kivy_cube_app.core.game_state import Player
 
-class TestPlayer(unittest.TestCase):
 
+class TestPlayer(unittest.TestCase):
     def setUp(self):
         self.player = Player(1, "Test Player")
 
@@ -38,5 +37,6 @@ class TestPlayer(unittest.TestCase):
         self.assertEqual(self.player.score, 0)
         self.assertEqual(self.player.consecutive_successes, 0)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

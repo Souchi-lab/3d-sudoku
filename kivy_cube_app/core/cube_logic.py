@@ -1,6 +1,5 @@
-
-from ..utils.constants import *
 from ..utils.logger import AppLogger
+
 
 class CubeLogic:
     def __init__(self, field, N, initial_data=None):
@@ -15,7 +14,7 @@ class CubeLogic:
                 pos = item["pos"]
                 value = item["value"]
                 self.set_number(pos[0], pos[1], pos[2], value)
-                self.field.reflect([pos[0]+1, pos[1]+1, pos[2]+1], value)
+                self.field.reflect([pos[0] + 1, pos[1] + 1, pos[2] + 1], value)
 
     def get_number(self, i, j, k):
         val = self._numbers[i][j][k]
@@ -39,7 +38,7 @@ class CubeLogic:
             self._last_error_message = "Invalid input: Already filled."
             return False
 
-        pos = [i+1, j+1, k+1]
+        pos = [i + 1, j + 1, k + 1]
         ok, message = self.field.check(pos, value)
         if ok:
             self._numbers[i][j][k] = value
@@ -67,8 +66,8 @@ class CubeLogic:
         for i in range(self.N):
             for j in range(self.N):
                 for k in range(self.N):
-                    if self._numbers[i][j][k] is None: # 空いているセルのみをチェック
-                        pos = [i+1, j+1, k+1] # Fieldは1ベースのインデックスを期待
+                    if self._numbers[i][j][k] is None:  # 空いているセルのみをチェック
+                        pos = [i + 1, j + 1, k + 1]  # Fieldは1ベースのインデックスを期待
                         ok, _ = self.field.check(pos, value)
                         if ok:
                             return True
@@ -78,7 +77,6 @@ class CubeLogic:
         """
         全てのセルが埋まっているかどうかをチェックします。
         """
-        return all(self._numbers[i][j][k] is not None
-                   for i in range(self.N)
-                   for j in range(self.N)
-                   for k in range(self.N))
+        return all(
+            self._numbers[i][j][k] is not None for i in range(self.N) for j in range(self.N) for k in range(self.N)
+        )

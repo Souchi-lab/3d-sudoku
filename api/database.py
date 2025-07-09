@@ -1,19 +1,21 @@
-from sqlalchemy import create_engine, Column, Integer, String, DateTime
-from sqlalchemy.orm import scoped_session, sessionmaker
-from sqlalchemy.ext.declarative import declarative_base
 import datetime
+
+from sqlalchemy import Column, DateTime, Integer, String, create_engine
+
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import scoped_session, sessionmaker, DeclarativeBase
+from typing import Any
 
 DATABASE_URL = "sqlite:///./rank.db"
 
 engine = create_engine(DATABASE_URL)
-db_session = scoped_session(sessionmaker(autocommit=False,
-                                         autoflush=False,
-                                         bind=engine))
-Base = declarative_base()
+db_session = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=engine))
+Base: Any = declarative_base()
 Base.query = db_session.query_property()
 
+
 class Rank(Base):
-    __tablename__ = 'ranks'
+    __tablename__ = "ranks"
     id = Column(Integer, primary_key=True)
     player_name = Column(String(50), nullable=False)
     score = Column(Integer, nullable=False)
@@ -26,7 +28,8 @@ class Rank(Base):
         self.level = level
 
     def __repr__(self):
-        return f'<Rank {self.player_name} - {self.score} ({self.level})>'
+        return f"<Rank {self.player_name} - {self.score} ({self.level})>"
+
 
 def init_db():
     # import all modules here that might define models so that

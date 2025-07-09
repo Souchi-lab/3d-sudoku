@@ -1,21 +1,18 @@
-
-import unittest
-import sys
 import os
 import random
+import sys
+import unittest
 from unittest.mock import MagicMock, patch
 
 # Add the project root to the Python path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from kivy_cube_app.core.game_state import GameState
-from kivy_cube_app.utils.constants import LENGTH_OF_SIDE, MAX_SKIP_COUNT
+from kivy_cube_app.utils.constants import LENGTH_OF_SIDE, MAX_SKIP_COUNT, TA_BASE_TIME_LV1
+
 
 class TestGameState(unittest.TestCase):
-
-    
-
-    @patch('kivy_cube_app.core.game_state.GameState._generate_initial_filled_cells', return_value=[])
+    @patch("kivy_cube_app.core.game_state.GameState._generate_initial_filled_cells", return_value=[])
     def test_initial_state(self, mock_generate_initial_filled_cells):
         gs = GameState(N=LENGTH_OF_SIDE)
         self.assertEqual(gs.current_player_id, 1)
@@ -23,15 +20,15 @@ class TestGameState(unittest.TestCase):
         self.assertEqual(gs.current_index, 0)
         self.assertEqual(gs.players[1].score, 0)
         self.assertEqual(gs.players[2].score, 0)
-        mock_generate_initial_filled_cells.assert_called_once_with(1) # Default level is 1
+        mock_generate_initial_filled_cells.assert_called_once_with(1)  # Default level is 1
 
     def test_create_nums_hint_exclusion(self):
         # GS-CN-01: ヒント除外
         gs = GameState(N=LENGTH_OF_SIDE)
-        initial_filled_cells = [{"pos": [0,0,0], "value": 1}, {"pos": [0,0,1], "value": 2}]
+        initial_filled_cells = [{"pos": [0, 0, 0], "value": 1}, {"pos": [0, 0, 1], "value": 2}]
         # Get initial counts before creating nums
-        initial_count_1 = (LENGTH_OF_SIDE ** 2)
-        initial_count_2 = (LENGTH_OF_SIDE ** 2)
+        initial_count_1 = LENGTH_OF_SIDE**2
+        initial_count_2 = LENGTH_OF_SIDE**2
 
         nums = gs.create_nums(initial_filled_cells)
         # 期待される長さは N^3 からヒントの数だけ減る
@@ -61,7 +58,9 @@ class TestGameState(unittest.TestCase):
         initial_index = gs.current_index
         gs.next_turn()
         self.assertNotEqual(gs.current_player_id, initial_player)
-        self.assertEqual(gs.current_index, initial_index) # current_indexはpopによって自動的に調整されるため、同じになる
+        self.assertEqual(
+            gs.current_index, initial_index
+        )  # current_indexはpopによって自動的に調整されるため、同じになる
 
     def test_next_turn_sequence_shortens(self):
         # GS-NT-02: シーケンス短縮
@@ -117,16 +116,18 @@ class TestGameState(unittest.TestCase):
         self.assertEqual(gs.current_player_id, initial_player_id)
         self.assertEqual(gs.skip_count, initial_skip_count)
 
-    @patch('time.time')
+    @patch("kivy_cube_app.core.game_state.time")
     def test_timer_expiration(self, mock_time):
         # GS-TM-01: 期限切れ
-        gs = GameState(N=LENGTH_OF_SIDE, is_ta_mode=True, level=1)
         # 初期時間設定
-        mock_time.return_value = 100.0
-        gs.start_timer(1) # TA_BASE_TIME_LV1 は constants.py で定義されているはず
+        initial_time = 100.0
+        mock_time.return_value = initial_time  # 最初のtime()呼び出し（GameState.__init__内）用
 
+        gs = GameState(N=LENGTH_OF_SIDE, is_ta_mode=True, level=1)
         # 時間が経過し、期限切れになるように設定
-        mock_time.return_value = 100.0 + gs.time_left + 1.0 # 1秒オーバー
+        time_after_expiration = initial_time + gs.time_left + 1.0  # 1秒オーバー
+        mock_time.return_value = time_after_expiration  # 2回目のtime()呼び出し（gs.update_timer()内）用
+
         gs.update_timer()
         self.assertTrue(gs.is_time_up())
 
@@ -136,7 +137,7 @@ class TestGameState(unittest.TestCase):
         mock_cube_logic = MagicMock()
         # all_cells_filled が True を返すように設定
         mock_cube_logic.all_cells_filled.return_value = True
-        mock_cube_logic.can_place_number.return_value = True # 配置可能でもゲームオーバーになることを確認
+        mock_cube_logic.can_place_number.return_value = True  # 配置可能でもゲームオーバーになることを確認
 
         self.assertTrue(gs.is_game_over(mock_cube_logic))
 
@@ -168,5 +169,6 @@ class TestGameState(unittest.TestCase):
         self.assertEqual(gs.players[1].score, 0)
         self.assertEqual(gs.players[2].score, 0)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

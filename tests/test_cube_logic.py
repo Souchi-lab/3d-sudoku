@@ -1,16 +1,16 @@
-import unittest
-import sys
 import os
+import sys
+import unittest
 
 # Add the project root to the Python path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from kivy_cube_app.core.cube_logic import CubeLogic
 from kivy_cube_app.core.field import Field
 from kivy_cube_app.utils.constants import LENGTH_OF_SIDE
 
-class TestCubeLogic(unittest.TestCase):
 
+class TestCubeLogic(unittest.TestCase):
     def setUp(self):
         self.field = Field(LENGTH_OF_SIDE)
         self.cube_logic = CubeLogic(field=self.field, N=LENGTH_OF_SIDE)
@@ -25,8 +25,8 @@ class TestCubeLogic(unittest.TestCase):
 
     def test_attempt_input_duplicate_cell(self):
         # CL-AI-02: 重複セル
-        self.cube_logic.attempt_input(0, 0, 0, 1) # Place a number first
-        result = self.cube_logic.attempt_input(0, 0, 0, 2) # Try to place another number at the same position
+        self.cube_logic.attempt_input(0, 0, 0, 1)  # Place a number first
+        result = self.cube_logic.attempt_input(0, 0, 0, 2)  # Try to place another number at the same position
         self.assertFalse(result)
         self.assertEqual(self.cube_logic.get_last_error(), "Invalid input: Already filled.")
 
@@ -47,13 +47,13 @@ class TestCubeLogic(unittest.TestCase):
         for i in range(LENGTH_OF_SIDE):
             for j in range(LENGTH_OF_SIDE):
                 for k in range(LENGTH_OF_SIDE):
-                    self.cube_logic.field.set_point([i + 1, j + 1, k + 1], 1) # Fill with any number
+                    self.cube_logic.field.set_point([i + 1, j + 1, k + 1], 1)  # Fill with any number
         self.assertFalse(self.cube_logic.can_place_number(1))
 
     def test_reset(self):
         # CL-RS-01: 盤面クリア
         self.cube_logic.attempt_input(0, 0, 0, 1)
-        
+
         self.cube_logic.reset()
         self.assertEqual(self.cube_logic.get_last_error(), "")
         for i in range(LENGTH_OF_SIDE):
@@ -61,5 +61,6 @@ class TestCubeLogic(unittest.TestCase):
                 for k in range(LENGTH_OF_SIDE):
                     self.assertIsNone(self.cube_logic.field.get_number(i, j, k))
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

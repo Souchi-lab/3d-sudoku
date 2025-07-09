@@ -1,6 +1,5 @@
-
-N_VALUE: int = 3 # Nの値を定義
-LENGTH_OF_SIDE: int = N_VALUE # N_VALUEと同じ値を設定
+N_VALUE: int = 3  # Nの値を定義
+LENGTH_OF_SIDE: int = N_VALUE  # N_VALUEと同じ値を設定
 
 # setting
 ATTEMPT_NUM: int = 50
@@ -27,15 +26,15 @@ TIME_GAIN_5_CONSECUTIVE_SUCCESS: int = 8
 TIME_PENALTY_WRONG_PLACEMENT: int = 10
 
 # Initial game setup
-INITIAL_FILLED_CELLS = []
+INITIAL_FILLED_CELLS: list[dict] = []
 
 # loggin
-LOG_FILE_PATH : str = './log/'
-LOG_FILE_NAME : str = '4cube.log'
-LOG_ENCODE: str = 'utf-8'
-APP_LOG_FORMAT: str = '%(asctime)s:%(levelname)s:%(game_id)s:%(message)s'
-CONSOLE_LOG_FORMAT: str = '%(asctime)s:%(levelname)s:%(name)s:%(pathname)s:%(lineno)d:%(message)s'
-LOG_MAX_BYTES: int = 1024 * 1024 * 10 # 10MB
+LOG_FILE_PATH: str = "./log/"
+LOG_FILE_NAME: str = "4cube.log"
+LOG_ENCODE: str = "utf-8"
+APP_LOG_FORMAT: str = "%(asctime)s:%(levelname)s:%(game_id)s:%(message)s"
+CONSOLE_LOG_FORMAT: str = "%(asctime)s:%(levelname)s:%(name)s:%(pathname)s:%(lineno)d:%(message)s"
+LOG_MAX_BYTES: int = 1024 * 1024 * 10  # 10MB
 LOG_BACKUP_COUNT: int = 10
 
 # command

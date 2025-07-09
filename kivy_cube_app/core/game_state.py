@@ -1,15 +1,24 @@
 import random
 from time import time
-from ..utils.constants import TA_BASE_TIME_LV1, TA_BASE_TIME_LV2, TA_BASE_TIME_LV3, TA_BASE_TIME_LV4, TA_BASE_TIME_LV5, TIME_GAIN_LINE_COMPLETE, TIME_GAIN_SLICE_COMPLETE, TIME_GAIN_5_CONSECUTIVE_SUCCESS, TIME_PENALTY_WRONG_PLACEMENT, MAX_SKIP_COUNT
-from ..core.scramble import scramble_board # Import scramble_board
+
+from ..core.scramble import scramble_board  # Import scramble_board
+from ..utils.constants import (
+    MAX_SKIP_COUNT,
+    TA_BASE_TIME_LV1,
+    TA_BASE_TIME_LV2,
+    TA_BASE_TIME_LV3,
+    TA_BASE_TIME_LV4,
+    TA_BASE_TIME_LV5,
+)
 from ..utils.logger import AppLogger
+
 
 class Player:
     def __init__(self, player_id, name="Player"):
         self.id = player_id
         self.name = name
         self.score = 0
-        self.consecutive_successes = 0 # 連続成功回数
+        self.consecutive_successes = 0  # 連続成功回数
 
     def add_score(self, value=1):
         if value < 0:
@@ -20,18 +29,17 @@ class Player:
         self.score = 0
         self.consecutive_successes = 0
 
+
 class GameState:
     def __init__(self, N: int, is_ta_mode: bool = False, level: int = 1):
         self.logger = AppLogger().get_logger()
-        self.N = N # Nをインスタンス変数として保持
+        self.N = N  # Nをインスタンス変数として保持
         self.is_ta_mode = is_ta_mode
         self.level = level
+        self.game_id: str = ""
 
         # プレイヤー情報初期化
-        self.players = {
-            1: Player(1, "Player 1"),
-            2: Player(2, "Player 2")
-        }
+        self.players = {1: Player(1, "Player 1"), 2: Player(2, "Player 2")}
         self.current_player_id = 1
 
         # 初期配置の生成
@@ -44,9 +52,9 @@ class GameState:
 
         # タイマー関連
         self.time_left = 0.0
-        self.last_update_time = 0.0 # New: Track last update time for accurate time calculation
+        self.last_update_time = 0.0  # New: Track last update time for accurate time calculation
         self.skip_count = 0
-        self._number_skip_callback = None # New: Callback for number skip notification
+        self._number_skip_callback = None  # New: Callback for number skip notification
         if self.is_ta_mode:
             self.start_timer(level)
 
@@ -60,13 +68,13 @@ class GameState:
         # レベルに応じたヒントの数を決定
         # 例: レベル1はヒントが多い、レベル5はヒントが少ない
         hint_counts = {
-            1: 20, # Easy
+            1: 20,  # Easy
             2: 15,
             3: 10,
             4: 7,
             5: 5,  # Hard
         }
-        num_hints = hint_counts.get(level, 10) # Default to 10 hints
+        num_hints = hint_counts.get(level, 10)  # Default to 10 hints
 
         all_possible_positions = []
         for i in range(self.N):
@@ -90,18 +98,18 @@ class GameState:
         """
         from random import shuffle
 
-        count_per_number = self.N ** 2
-        _nums = [n for n in range(1, self.N + 1)
-                for _ in range(count_per_number)]
+        count_per_number = self.N**2
+        _nums = [n for n in range(1, self.N + 1) for _ in range(count_per_number)]
 
         # Remove the numbers that are already placed on the board
         # Remove one instance of each hint value from the sequence.
         for cell in initial_filled_cells:
             try:
-                _nums.remove(cell['value'])
+                _nums.remove(cell["value"])
             except ValueError:
                 # This should not happen if initial_filled_cells are valid hints
-                self.logger.warning(f"Hint value {cell['value']} not found in sequence during removal.")
+                if self.logger:
+                    self.logger.warning(f"Hint value {cell['value']} not found in sequence during removal.")
 
         shuffle(_nums)
         return _nums
@@ -122,14 +130,14 @@ class GameState:
             self.current_index = min(self.current_index, len(self.sequence) - 1)
             self.current_number = self.sequence[self.current_index]
         else:
-            self.current_number = None # シーケンスが空になった場合
+            self.current_number = None  # シーケンスが空になった場合
 
     def get_upcoming(self, count=None) -> list:
         """
         現在インデックス以降のシーケンスを返す。
         count指定で先頭count個、Noneなら全て返す
         """
-        rem = self.sequence[self.current_index:]
+        rem = self.sequence[self.current_index :]
         return rem[:count] if count is not None else rem
 
     def add_score(self, value=1):
@@ -179,7 +187,6 @@ class GameState:
 
     # --- タイマー関連メソッド ---
     def start_timer(self, level: int):
-        from time import time
         base_times = {
             1: TA_BASE_TIME_LV1,
             2: TA_BASE_TIME_LV2,
@@ -187,11 +194,10 @@ class GameState:
             4: TA_BASE_TIME_LV4,
             5: TA_BASE_TIME_LV5,
         }
-        self.time_left = float(base_times.get(level, 600)) # デフォルトは600秒
-        self.last_update_time = time() # Initialize last_update_time
+        self.time_left = float(base_times.get(level, 600))  # デフォルトは600秒
+        self.last_update_time = time()  # Initialize last_update_time
 
     def update_timer(self):
-        from time import time
         if self.is_ta_mode:
             current_time = time()
             elapsed_since_last_update = current_time - self.last_update_time
@@ -239,4 +245,3 @@ class GameState:
         self.current_number = self.sequence[self.current_index]
         if self._number_skip_callback:
             self._number_skip_callback(self.current_number)
-  
