@@ -24,6 +24,31 @@ class FieldAdapter:
     def get_all_numbers(self):
         return self.f.get_all_numbers()
 
+    def get_completed_lines_and_slices(self):
+        return self.f.get_completed_lines_and_slices()
+
+    def get_line_status(self, axis, p1, p2):
+        return self.f.get_line_status(axis, p1, p2)
+
+    def set_point(self, pos, num):
+        self.f.set_point(pos, num)
+
+    @property
+    def board(self):
+        return self.f.board
+
+    @board.setter
+    def board(self, value):
+        self.f.board = value
+
+    @property
+    def candidates(self):
+        return self.f.candidates
+
+    @candidates.setter
+    def candidates(self, value):
+        self.f.candidates = value
+
     def reset(self):
         """盤面と候補を初期状態に戻す"""
         self.f = Field(logger=self.logger, N=self.N)
