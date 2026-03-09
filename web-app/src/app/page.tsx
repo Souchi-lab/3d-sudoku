@@ -1,11 +1,17 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import HyperCube, { LayerFilter } from "@/components/game/HyperCube";
 import RulesModal from "@/components/game/RulesModal";
 import { SudokuEngine, Position } from "@/lib/sudokuEngine";
-import { getBestTime, trySetBestTime, fmtTime } from "@/lib/bestTime";
-import { Timer, Trophy, RotateCcw, HelpCircle, User, Cpu, Users, Layers, Lightbulb, Undo2 } from "lucide-react";
+import {
+  getBestTime, trySetBestTime, fmtTime,
+  recordPlay, getStats, getDailyStreak, updateDailyStreak,
+} from "@/lib/bestTime";
+import {
+  Timer, Trophy, RotateCcw, HelpCircle, User, Cpu, Users,
+  Layers, Lightbulb, Undo2, CalendarDays, CheckCircle2,
+} from "lucide-react";
 import { CpuPlayer } from "@/lib/cpuPlayer";
 
 // ---------------------------------------------------------------------------
@@ -20,7 +26,6 @@ const NUMBER_COLORS: Record<number, string> = {
   5: "#9b5de5",
 };
 
-// Seconds per level (harder = less time)
 const TIME_BY_LEVEL: Record<number, number> = { 1: 600, 2: 540, 3: 480, 4: 420, 5: 360 };
 
 const LEVEL_LABELS: Record<number, string> = {
@@ -38,6 +43,12 @@ const CPU_LABEL: Record<number, string> = {
   4: "強め",
   5: "最強（妨害あり）",
 };
+
+/** Today's date as YYYYMMDD integer seed (deterministic daily challenge). */
+function todaySeed(): number {
+  const d = new Date();
+  return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+}
 
 // ---------------------------------------------------------------------------
 // Styled helper components
@@ -76,9 +87,9 @@ function LightButton({ onClick, className = "", children }: {
 }
 
 // ---------------------------------------------------------------------------
-// Game session state bundled into a ref — avoids stale-closure issues
+// Game config ref type
 // ---------------------------------------------------------------------------
-interface GameConfig { N: number; level: number; mode: 'solo' | 'versus-cpu' | 'versus-human' }
+interface GameConfig { N: number; level: number; mode: 'solo' | 'versus-cpu' | 'versus-human' | 'daily' }
 
 // ---------------------------------------------------------------------------
 // Main component
@@ -87,14 +98,14 @@ export default function GamePage() {
   // ── Config (mode select) ──────────────────────────────────────────────────
   const [selectedN,     setSelectedN]     = useState(3);
   const [selectedLevel, setSelectedLevel] = useState(3);
-  const [gameMode, setGameMode] = useState<'solo' | 'versus-cpu' | 'versus-human' | null>(null);
+  const [gameMode, setGameMode] = useState<'solo' | 'versus-cpu' | 'versus-human' | 'daily' | null>(null);
 
   // ── Live game state ───────────────────────────────────────────────────────
   const engineRef     = useRef<SudokuEngine | null>(null);
   const cpuRef        = useRef<CpuPlayer | null>(null);
   const configRef     = useRef<GameConfig>({ N: 3, level: 3, mode: 'solo' });
-  const gameActiveRef = useRef(false);   // guards the "stuck" effect
-  const startTimeRef  = useRef(0);       // Date.now() when game started
+  const gameActiveRef = useRef(false);
+  const startTimeRef  = useRef(0);
 
   const [N,             setN]             = useState(3);
   const [board,         setBoard]         = useState<(number | null)[][][]>([]);
@@ -115,32 +126,58 @@ export default function GamePage() {
   const [layerFilter,   setLayerFilter]   = useState<LayerFilter>(null);
 
   // ── Flash / hint / best-time / undo state ────────────────────────────────
-  const [flashingCells,  setFlashingCells]  = useState<Set<string>>(new Set());
-  const [flashStartTime, setFlashStartTime] = useState(0);
-  const [hintPos,        setHintPos]        = useState<Position | null>(null);
-  const [bestTimeDisplay,setBestTimeDisplay] = useState<number | null>(null);
-  const [boardComplete,  setBoardComplete]  = useState(false);
-  const [clearTime,      setClearTime]      = useState<number | null>(null);
-  const [isNewBest,      setIsNewBest]      = useState(false);
-  const [canUndo,        setCanUndo]        = useState(false);
-  const [stuckNumbers,   setStuckNumbers]   = useState<number[]>([]);
-  // VS Human: shown between turns so players can physically swap seats
-  const [showHandoff,    setShowHandoff]    = useState(false);
+  const [flashingCells,   setFlashingCells]   = useState<Set<string>>(new Set());
+  const [flashStartTime,  setFlashStartTime]  = useState(0);
+  const [hintPos,         setHintPos]         = useState<Position | null>(null);
+  const [bestTimeDisplay, setBestTimeDisplay] = useState<number | null>(null);
+  const [boardComplete,   setBoardComplete]   = useState(false);
+  const [clearTime,       setClearTime]       = useState<number | null>(null);
+  const [isNewBest,       setIsNewBest]       = useState(false);
+  const [canUndo,         setCanUndo]         = useState(false);
+  const [stuckNumbers,    setStuckNumbers]    = useState<number[]>([]);
+  const [showHandoff,     setShowHandoff]     = useState(false);
+
+  // ── New feature states ────────────────────────────────────────────────────
+  const [justPlacedPos,  setJustPlacedPos]  = useState<Position | null>(null);
+  const [justPlacedTime, setJustPlacedTime] = useState(0);
+  const [hintCellKeys,   setHintCellKeys]   = useState<Set<string>>(new Set());
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  // ── First-run onboarding ──────────────────────────────────────────────────
+  useEffect(() => {
+    if (typeof window !== "undefined" && !localStorage.getItem("sochiblocks-onboarded")) {
+      setShowOnboarding(true);
+    }
+  }, []);
+
+  // ── Derived values ────────────────────────────────────────────────────────
+  const numberCounts = useMemo(() => {
+    const counts: Record<number, number> = {};
+    for (let n = 1; n <= N; n++) counts[n] = 0;
+    board.flat(2).forEach(v => { if (v !== null) counts[v] = (counts[v] ?? 0) + 1; });
+    return counts;
+  }, [board, N]);
+
+  const filledCount = useMemo(() => board.flat(2).filter(v => v !== null).length, [board]);
+  const totalCells  = N * N * N;
 
   // ── Start game ────────────────────────────────────────────────────────────
-  const startGame = useCallback((mode: 'solo' | 'versus-cpu' | 'versus-human', n: number, lv: number) => {
+  const startGame = useCallback((mode: 'solo' | 'versus-cpu' | 'versus-human' | 'daily', n: number, lv: number) => {
     const engine = new SudokuEngine(n);
-    const hints  = SudokuEngine.generateInitialHints(n, lv);
-    hints.forEach(h => engine.setPoint(h.pos, h.value));
 
-    // Freeze snapshot BEFORE history starts (undo will rebuild from here)
+    const hints = mode === 'daily'
+      ? SudokuEngine.generateInitialHintsSeeded(n, lv, todaySeed())
+      : SudokuEngine.generateInitialHints(n, lv);
+
+    hints.forEach(h => engine.setPoint(h.pos, h.value));
     engine.freezeInitialSnapshot();
+
+    const keySet = new Set<string>(hints.map(h => `${h.pos[0]}-${h.pos[1]}-${h.pos[2]}`));
 
     engineRef.current = engine;
     cpuRef.current    = new CpuPlayer(engine, n, lv);
     configRef.current = { N: n, level: lv, mode };
     startTimeRef.current = Date.now();
-
     gameActiveRef.current = false;
 
     setN(n);
@@ -169,6 +206,9 @@ export default function GamePage() {
     setCanUndo(false);
     setStuckNumbers([]);
     setShowHandoff(false);
+    setJustPlacedPos(null);
+    setJustPlacedTime(0);
+    setHintCellKeys(keySet);
     setBestTimeDisplay(getBestTime(n, lv));
     setGameMode(mode);
 
@@ -188,7 +228,11 @@ export default function GamePage() {
   }, [gameMode, isStuck, boardComplete]);
 
   useEffect(() => {
-    if (timeLeft === 0 && gameMode && !boardComplete) setShowGameOverOverlay(true);
+    if (timeLeft === 0 && gameMode && !boardComplete) {
+      setShowGameOverOverlay(true);
+      const { mode, N: cn, level } = configRef.current;
+      if (mode === 'solo' || mode === 'daily') recordPlay(cn, level, false);
+    }
   }, [timeLeft, gameMode, boardComplete]);
 
   // ── Stuck check ───────────────────────────────────────────────────────────
@@ -199,6 +243,8 @@ export default function GamePage() {
       setStuckNumbers(unplaceable);
       setIsStuck(true);
       setShowGameOverOverlay(true);
+      const { mode, N: cn, level } = configRef.current;
+      if (mode === 'solo' || mode === 'daily') recordPlay(cn, level, false);
     }
   }, [board, currentNumber]);
 
@@ -231,7 +277,7 @@ export default function GamePage() {
     return () => clearTimeout(t1);
   }, [currentPlayer, gameMode, currentNumber, isStuck, boardComplete]);
 
-  // ── commitMove (shared by human click and CPU) ────────────────────────────
+  // ── commitMove ────────────────────────────────────────────────────────────
   const commitMove = useCallback((pos: Position, num: number, player: number) => {
     const engine = engineRef.current;
     if (!engine) return;
@@ -245,19 +291,19 @@ export default function GamePage() {
       return;
     }
 
-    // Snapshot completed lines/slices BEFORE placement (to detect new ones)
     const beforeLineKeys = new Set(
       engine.getCompletionStatus().lines.map(l => `${l.axis}-${l.i}-${l.j}`)
     );
 
-    // Record in history so Undo can revert it (CPU moves also recorded)
     engine.placeWithHistory(pos, num, player);
     setCanUndo(true);
     setBoard([...engine.getBoard()]);
     setLastPlacedPos(pos);
+    setJustPlacedPos(pos);
+    setJustPlacedTime(performance.now());
     setHintPos(null);
 
-    // ── Detect newly completed lines/slices and flash them ──────────────────
+    // Flash newly completed lines
     const afterStatus = engine.getCompletionStatus();
     const newFlashCells = new Set<string>();
     const cn = configRef.current.N;
@@ -279,7 +325,7 @@ export default function GamePage() {
       setTimeout(() => setFlashingCells(new Set()), 1500);
     }
 
-    // ── Scoring ──────────────────────────────────────────────────────────────
+    // Scoring
     const now = Date.now();
     setLastSuccessTimes(prev => {
       const newTimes = { ...prev, [player]: now };
@@ -299,25 +345,26 @@ export default function GamePage() {
     const { N: cn2, mode } = configRef.current;
     setCurrentNumber(n => (n % cn2) + 1);
     setSelectedPos(null);
-    if (mode !== 'solo') {
+    if (mode !== 'solo' && mode !== 'daily') {
       const nextPlayer = player === 1 ? 2 : 1;
       setCurrentPlayer(nextPlayer);
-      // VS Human: show handoff screen so players can physically swap seats
       if (mode === 'versus-human') setShowHandoff(true);
     }
 
-    // ── Board complete check (solo mode only records best time) ──────────────
+    // Board complete
     const allFilled = engine.getBoard().flat(2).every(v => v !== null);
     if (allFilled) {
       gameActiveRef.current = false;
       setBoardComplete(true);
       setShowGameOverOverlay(true);
-      if (configRef.current.mode === 'solo') {
+      if (mode === 'solo' || mode === 'daily') {
         const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
         setClearTime(elapsed);
         const newRecord = trySetBestTime(configRef.current.N, configRef.current.level, elapsed);
         setIsNewBest(newRecord);
         setBestTimeDisplay(getBestTime(configRef.current.N, configRef.current.level));
+        recordPlay(configRef.current.N, configRef.current.level, true);
+        updateDailyStreak();
       }
     }
   }, []);
@@ -328,12 +375,12 @@ export default function GamePage() {
     if (!engine) return;
     const { N: cn } = configRef.current;
 
-    const board = engine.getBoard();
+    const b = engine.getBoard();
     const validCells: Position[] = [];
     for (let i = 0; i < cn; i++)
       for (let j = 0; j < cn; j++)
         for (let k = 0; k < cn; k++)
-          if (board[i][j][k] === null && engine.check([i, j, k], currentNumber).valid)
+          if (b[i][j][k] === null && engine.check([i, j, k], currentNumber).valid)
             validCells.push([i, j, k]);
 
     if (validCells.length === 0) return;
@@ -351,6 +398,7 @@ export default function GamePage() {
 
     setBoard([...engine.getBoard()]);
     setLastPlacedPos(null);
+    setJustPlacedPos(null);
     setSelectedPos(null);
     setHintPos(null);
     setIsStuck(false);
@@ -361,10 +409,9 @@ export default function GamePage() {
     gameActiveRef.current = true;
     setShowHandoff(false);
 
-    // Restore the number and player that made the undone move
     setCurrentNumber(undone.value);
     const { mode } = configRef.current;
-    if (mode !== 'solo') setCurrentPlayer(undone.player);
+    if (mode !== 'solo' && mode !== 'daily') setCurrentPlayer(undone.player);
   }, []);
 
   // ── Human cell click ──────────────────────────────────────────────────────
@@ -372,7 +419,7 @@ export default function GamePage() {
     const { mode } = configRef.current;
     if (mode === 'versus-cpu' && currentPlayer === 2) return;
     if (isCpuThinking) return;
-    if (showHandoff) return;  // C1: block until handoff screen is dismissed
+    if (showHandoff) return;
 
     const isSame = selectedPos &&
       selectedPos[0] === pos[0] && selectedPos[1] === pos[1] && selectedPos[2] === pos[2];
@@ -384,12 +431,12 @@ export default function GamePage() {
     }
   }, [selectedPos, currentNumber, currentPlayer, isCpuThinking, showHandoff, commitMove]);
 
-  // ── Body scroll lock when any overlay is open (iOS fixed-position fix) ───
+  // ── Body scroll lock ──────────────────────────────────────────────────────
   useEffect(() => {
-    const locked = showGameOverOverlay || showRules || showHandoff;
+    const locked = showGameOverOverlay || showRules || showHandoff || showOnboarding;
     document.body.style.overflow = locked ? "hidden" : "";
     return () => { document.body.style.overflow = ""; };
-  }, [showGameOverOverlay, showRules, showHandoff]);
+  }, [showGameOverOverlay, showRules, showHandoff, showOnboarding]);
 
   // ── Keyboard shortcuts ────────────────────────────────────────────────────
   useEffect(() => {
@@ -406,13 +453,55 @@ export default function GamePage() {
   }, [gameMode]);
 
   // ==========================================================================
+  // ONBOARDING OVERLAY (M4)
+  // ==========================================================================
+  if (showOnboarding) {
+    return (
+      <div className="fixed inset-0 bg-black/55 backdrop-blur-sm flex items-center justify-center z-50 p-6">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-8 text-center">
+          <div className="w-16 h-16 bg-[#333333] rounded-2xl flex items-center justify-center mx-auto mb-5">
+            <span className="text-3xl font-black text-white">S</span>
+          </div>
+          <h1 className="text-2xl font-black text-[#1e1e1e] mb-1">SoChi BLOCKS</h1>
+          <p className="text-sm text-[#888888] mb-6">3D Hyper-Cube Sudoku へようこそ！</p>
+          <div className="text-left space-y-3 mb-7">
+            {[
+              ["1回タップ", "セルを選択（オレンジ枠）"],
+              ["再タップ",  "選択セルに数字を配置"],
+              ["キー 1〜N", "配置する数字を直接切り替え"],
+              ["ドラッグ",  "3D キューブを自由に回転"],
+            ].map(([key, val]) => (
+              <div key={key} className="flex gap-3 items-start text-sm">
+                <span className="shrink-0 bg-[#333333] text-white text-[10px] font-black px-2 py-0.5 rounded-md mt-0.5">
+                  {key}
+                </span>
+                <span className="text-[#666666]">{val}</span>
+              </div>
+            ))}
+          </div>
+          <DarkButton
+            className="w-full py-3"
+            onClick={() => {
+              localStorage.setItem("sochiblocks-onboarded", "1");
+              setShowOnboarding(false);
+            }}
+          >
+            はじめる
+          </DarkButton>
+        </div>
+      </div>
+    );
+  }
+
+  // ==========================================================================
   // MODE SELECT SCREEN
   // ==========================================================================
   if (!gameMode) {
     const modes = [
-      { id: 'solo'         as const, name: 'Solo Training', icon: User,  desc: '一人でキューブを完成させよう。' },
-      { id: 'versus-cpu'  as const, name: 'VS CPU',        icon: Cpu,   desc: 'AI対戦。難易度でCPUの強さが変わる。' },
-      { id: 'versus-human' as const, name: 'VS Human',     icon: Users, desc: 'ローカル2人対戦。同じ画面で対決。' },
+      { id: 'solo'          as const, name: 'Solo Training',   icon: User,        desc: '一人でキューブを完成させよう。' },
+      { id: 'versus-cpu'    as const, name: 'VS CPU',          icon: Cpu,         desc: 'AI対戦。難易度でCPUの強さが変わる。' },
+      { id: 'versus-human'  as const, name: 'VS Human',        icon: Users,       desc: 'ローカル2人対戦。同じ画面で対決。' },
+      { id: 'daily'         as const, name: 'Daily Challenge', icon: CalendarDays, desc: `今日のパズル。毎日同じ問題にチャレンジ！` },
     ];
 
     const nOptions = [
@@ -420,6 +509,9 @@ export default function GamePage() {
       { n: 3, label: "3×3×3", sub: "27マス / 数字1〜3" },
       { n: 4, label: "4×4×4", sub: "64マス / 数字1〜4" },
     ];
+
+    const streak = getDailyStreak();
+    const stats  = getStats(selectedN, selectedLevel);
 
     return (
       <main className="min-h-dvh bg-[#fcfcfc] flex items-center justify-center p-6 md:p-8 pt-safe">
@@ -429,6 +521,11 @@ export default function GamePage() {
           <div className="text-center">
             <h1 className="text-4xl font-black tracking-[0.04em] text-[#1e1e1e] mb-1">SoChi BLOCKS</h1>
             <p className="text-sm font-semibold text-[#888888] tracking-widest uppercase">Hyper-Cube Sudoku</p>
+            {streak >= 2 && (
+              <p className="mt-2 text-sm font-bold text-[#2e7d32]">
+                🔥 {streak}日連続プレイ中！
+              </p>
+            )}
           </div>
 
           {/* ── Cube size ── */}
@@ -481,7 +578,8 @@ export default function GamePage() {
                 {Math.floor((selectedN * selectedN * selectedLevel) / 5)} マス
               </strong></div>
               <div>制限時間: <strong className="text-[#1e1e1e]">{(TIME_BY_LEVEL[selectedLevel] ?? 480) / 60} 分</strong></div>
-              {/* Show best time for solo mode */}
+
+              {/* Best time */}
               {(() => {
                 const bt = getBestTime(selectedN, selectedLevel);
                 return bt !== null ? (
@@ -491,6 +589,17 @@ export default function GamePage() {
                   </div>
                 ) : null;
               })()}
+
+              {/* Stats */}
+              {stats.plays > 0 && (
+                <div className="col-span-2 flex gap-4 text-xs text-[#888888] mt-0.5">
+                  <span>プレイ: <strong className="text-[#1e1e1e]">{stats.plays}</strong></span>
+                  <span>クリア: <strong className="text-[#1e1e1e]">{stats.clears}</strong></span>
+                  {stats.clears > 0 && (
+                    <span>成功率: <strong className="text-[#1e1e1e]">{Math.round(stats.clears / stats.plays * 100)}%</strong></span>
+                  )}
+                </div>
+              )}
             </div>
           </section>
 
@@ -499,19 +608,23 @@ export default function GamePage() {
             <p className="text-[10px] font-black uppercase tracking-widest text-[#888888] mb-4 text-center">
               ゲームモードを選択
             </p>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {modes.map(m => (
                 <button
                   key={m.id}
                   onClick={() => startGame(m.id, selectedN, selectedLevel)}
-                  className="bg-white hover:bg-[#f5f5f5] active:bg-[#ececec] border border-[#dddddd] hover:border-[#333333] rounded-xl p-7 flex flex-col items-center gap-4 text-center transition-all shadow-sm hover:shadow-md"
+                  className={`bg-white hover:bg-[#f5f5f5] active:bg-[#ececec] border hover:border-[#333333] rounded-xl p-5 flex flex-col items-center gap-3 text-center transition-all shadow-sm hover:shadow-md ${
+                    m.id === 'daily' ? 'border-[#f5a623]' : 'border-[#dddddd]'
+                  }`}
                 >
-                  <div className="w-12 h-12 rounded-xl bg-[#f5f5f5] flex items-center justify-center">
-                    <m.icon className="w-6 h-6 text-[#333333]" />
+                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
+                    m.id === 'daily' ? 'bg-[#fff8ec]' : 'bg-[#f5f5f5]'
+                  }`}>
+                    <m.icon className={`w-5 h-5 ${m.id === 'daily' ? 'text-[#f5a623]' : 'text-[#333333]'}`} />
                   </div>
                   <div>
-                    <h2 className="text-base font-bold text-[#1e1e1e]">{m.name}</h2>
-                    <p className="text-xs text-[#888888] leading-relaxed mt-1">{m.desc}</p>
+                    <h2 className="text-sm font-bold text-[#1e1e1e]">{m.name}</h2>
+                    <p className="text-[10px] text-[#888888] leading-relaxed mt-0.5">{m.desc}</p>
                   </div>
                 </button>
               ))}
@@ -526,18 +639,28 @@ export default function GamePage() {
   // ==========================================================================
   // GAME SCREEN
   // ==========================================================================
-  const numColor  = NUMBER_COLORS[currentNumber] ?? "#333333";
-  const p2Label   = configRef.current.mode === 'versus-cpu' ? 'CPU' : 'Player 2';
+  const numColor   = NUMBER_COLORS[currentNumber] ?? "#333333";
+  const p2Label    = configRef.current.mode === 'versus-cpu' ? 'CPU' : 'Player 2';
   const isGameOver = timeLeft === 0 || isStuck || boardComplete;
   const winner =
     scores[1] > scores[2] ? 'Player 1' :
     scores[2] > scores[1] ? p2Label : null;
 
+  // Timer urgency class (M2)
+  const timerClass = timeLeft < 10
+    ? 'bg-[#fff5f5] border-[#e53e3e] text-[#e53e3e] animate-timer-urgent'
+    : timeLeft < 30
+      ? 'bg-[#fff5f5] border-[#e53e3e] text-[#e53e3e] animate-timer-pulse'
+      : timeLeft < 60
+        ? 'bg-[#fff5f5] border-[#e53e3e] text-[#e53e3e]'
+        : 'bg-[#f5f5f5] border-[#dddddd] text-[#333333]';
+
+  const progressPct = totalCells > 0 ? Math.round((filledCount / totalCells) * 100) : 0;
+
   return (
     <main className="min-h-dvh bg-[#fcfcfc] font-sans">
 
       {/* Header */}
-      {/* pt-safe covers iPhone notch / Dynamic Island */}
       <header className="bg-white border-b border-[#eeeeee] shadow-[0_1px_4px_rgba(0,0,0,0.06)] pt-safe">
         <div className="max-w-6xl mx-auto px-4 md:px-6 h-14 flex items-center gap-2 md:gap-4">
           <LightButton
@@ -552,28 +675,33 @@ export default function GamePage() {
             <span className="text-[#888888] text-sm font-semibold mx-2">·</span>
             <span className="text-sm font-semibold text-[#666666]">
               {N}×{N}×{N}  Lv {configRef.current.level} – {LEVEL_LABELS[configRef.current.level]}
+              {configRef.current.mode === 'daily' && ' · Daily'}
             </span>
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Best time badge (solo only) */}
-            {configRef.current.mode === 'solo' && (
+            {/* Best time badge (solo/daily only) */}
+            {(configRef.current.mode === 'solo' || configRef.current.mode === 'daily') && (
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border bg-[#e8f5e9] border-[#a5d6a7] text-[#2e7d32] text-sm font-bold">
                 <Trophy className="w-3.5 h-3.5" />
                 Best: {bestTimeDisplay !== null ? fmtTime(bestTimeDisplay) : '--:--'}
               </div>
             )}
 
-            {/* Timer */}
-            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-bold ${
-              timeLeft < 60
-                ? 'bg-[#fff5f5] border-[#e53e3e] text-[#e53e3e]'
-                : 'bg-[#f5f5f5] border-[#dddddd] text-[#333333]'
-            }`}>
+            {/* Timer (M2) */}
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-bold ${timerClass}`}>
               <Timer className="w-3.5 h-3.5" />
               {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
             </div>
           </div>
+        </div>
+
+        {/* Progress bar (H2) */}
+        <div className="h-1.5 bg-[#f5f5f5]">
+          <div
+            className="h-full bg-[#333333] transition-all duration-500"
+            style={{ width: `${progressPct}%` }}
+          />
         </div>
       </header>
 
@@ -585,7 +713,7 @@ export default function GamePage() {
             const label = pid === 1 ? 'Player 1' : p2Label;
             const Icon = pid === 2 && configRef.current.mode === 'versus-cpu' ? Cpu : User;
             return (
-              <div key={pid} className={`flex items-center gap-3 px-4 py-2 rounded-xl border transition-all ${
+              <div key={pid} className={`relative flex items-center gap-3 px-4 py-2 rounded-xl border overflow-hidden transition-all ${
                 isActive ? 'bg-white border-[#333333] shadow-sm' : 'bg-transparent border-transparent opacity-50'
               } ${pid === 2 ? 'justify-end' : ''}`}>
                 <div className="w-7 h-7 rounded-lg bg-[#f5f5f5] flex items-center justify-center">
@@ -603,6 +731,15 @@ export default function GamePage() {
                     {combos[pid]}x
                   </span>
                 )}
+                {/* H3: Combo shrink bar */}
+                {combos[pid] > 0 && (
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-transparent">
+                    <div
+                      key={lastSuccessTimes[pid]}
+                      className="h-full w-full bg-[#2ec47a] animate-combo-shrink"
+                    />
+                  </div>
+                )}
               </div>
             );
           })}
@@ -610,6 +747,10 @@ export default function GamePage() {
           <div className="text-center order-first md:order-none col-start-2 row-start-1">
             <div className="text-xs font-bold text-[#888888] uppercase tracking-widest">
               {isCpuThinking ? "CPU 思考中..." : `Player ${currentPlayer} のターン`}
+            </div>
+            {/* H2: filled count */}
+            <div className="text-[10px] text-[#aaaaaa] mt-0.5">
+              {filledCount} / {totalCells}
             </div>
           </div>
         </div>
@@ -626,14 +767,17 @@ export default function GamePage() {
             onCellClick={handleCellClick}
             selectedPos={selectedPos}
             lastPlacedPos={lastPlacedPos}
-            isShaking={isShaking && (configRef.current.mode === 'solo' || !isCpuThinking)}
+            isShaking={isShaking && (configRef.current.mode === 'solo' || configRef.current.mode === 'daily' || !isCpuThinking)}
             layerFilter={layerFilter}
             flashingCells={flashingCells}
             flashStartTime={flashStartTime}
             hintPos={hintPos}
+            justPlacedPos={justPlacedPos}
+            justPlacedTime={justPlacedTime}
+            hintCellKeys={hintCellKeys}
           />
 
-          {/* ── Slice display controller ── */}
+          {/* Slice display controller */}
           <div className="bg-white border border-[#dddddd] rounded-xl px-5 py-4 shadow-sm">
             <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-2">
@@ -708,26 +852,31 @@ export default function GamePage() {
                 </>
               ) : "セルをタップして選択してください。"}
             </p>
+            {/* M3: Number buttons with completion indicator */}
             <div className="flex gap-2">
               {Array.from({ length: N }, (_, i) => i + 1).map(n => {
                 const isCandidate = selectedPos ? engineRef.current?.getCandidates(selectedPos).includes(n) : false;
                 const col = NUMBER_COLORS[n] ?? "#999";
+                const isDone = numberCounts[n] >= N * N;
                 return (
-                  <button
-                    key={n}
-                    title={`数字 ${n} を選択 (キー: ${n})`}
-                    onClick={() => setCurrentNumber(n)}
-                    style={currentNumber === n ? { background: col, borderColor: col } : {}}
-                    className={`w-10 h-10 rounded-lg flex items-center justify-center text-sm font-black border transition-all cursor-pointer hover:scale-105 active:scale-95 ${
-                      currentNumber === n
-                        ? 'text-white scale-110 shadow-md'
-                        : isCandidate
-                          ? 'bg-[#e8f5e9] border-[#a5d6a7] text-[#2e7d32] hover:shadow-sm'
-                          : 'bg-[#f5f5f5] border-[#eeeeee] text-[#aaaaaa] hover:border-[#cccccc]'
-                    }`}
-                  >
-                    {n}
-                  </button>
+                  <div key={n} className="relative">
+                    <button
+                      title={`数字 ${n} を選択 (キー: ${n})`}
+                      onClick={() => setCurrentNumber(n)}
+                      style={currentNumber === n ? { background: col, borderColor: col } : {}}
+                      className={`w-10 h-10 rounded-lg flex items-center justify-center text-sm font-black border transition-all cursor-pointer hover:scale-105 active:scale-95 ${
+                        isDone
+                          ? 'bg-[#f5f5f5] border-[#eeeeee] text-[#cccccc] cursor-default'
+                          : currentNumber === n
+                            ? 'text-white scale-110 shadow-md'
+                            : isCandidate
+                              ? 'bg-[#e8f5e9] border-[#a5d6a7] text-[#2e7d32] hover:shadow-sm'
+                              : 'bg-[#f5f5f5] border-[#eeeeee] text-[#aaaaaa] hover:border-[#cccccc]'
+                      }`}
+                    >
+                      {isDone ? <CheckCircle2 className="w-4 h-4 text-[#a5d6a7]" /> : n}
+                    </button>
+                  </div>
                 );
               })}
             </div>
@@ -795,11 +944,13 @@ export default function GamePage() {
             <p className="text-sm text-[#666666] leading-relaxed">
               セルを<strong className="text-[#1e1e1e]">1回</strong>で選択、
               <strong className="text-[#1e1e1e]">再タップ</strong>で配置。
-              {configRef.current.mode !== 'solo' && <> {p2Label}と交互にプレイします。</>}
+              {configRef.current.mode !== 'solo' && configRef.current.mode !== 'daily' && (
+                <> {p2Label}と交互にプレイします。</>
+              )}
             </p>
           </div>
 
-          {/* Difficulty info */}
+          {/* Settings info */}
           <div className="bg-[#f5f5f5] border border-[#eeeeee] rounded-xl p-4">
             <h2 className="text-[10px] font-black uppercase tracking-widest text-[#888888] mb-2">設定</h2>
             <div className="space-y-1 text-xs text-[#666666]">
@@ -808,17 +959,20 @@ export default function GamePage() {
               {configRef.current.mode === 'versus-cpu' && (
                 <div>CPU: <strong className="text-[#1e1e1e]">{CPU_LABEL[configRef.current.level]}</strong></div>
               )}
+              {configRef.current.mode === 'daily' && (
+                <div>シード: <strong className="text-[#1e1e1e]">{todaySeed()}</strong></div>
+              )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* ── Rules modal ── */}
+      {/* Rules modal */}
       {showRules && (
         <RulesModal N={N} onClose={() => setShowRules(false)} />
       )}
 
-      {/* ── VS Human: turn handoff screen (C1 fix) ── */}
+      {/* VS Human: turn handoff screen */}
       {showHandoff && !isGameOver && (
         <div
           className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-40 cursor-pointer"
@@ -835,20 +989,20 @@ export default function GamePage() {
               画面をタップして開始してください
             </p>
             <div className="w-full h-1 bg-[#f5f5f5] rounded-full overflow-hidden">
-              <div className="h-full bg-[#333333] rounded-full animate-[width_0s_ease]" style={{ width: '100%' }} />
+              <div className="h-full bg-[#333333] rounded-full" style={{ width: '100%' }} />
             </div>
           </div>
         </div>
       )}
 
-      {/* ── Game Over / Clear overlay ── */}
+      {/* Game Over / Clear overlay */}
       {isGameOver && (
         <>
           {!showGameOverOverlay && (
             <button
               onClick={() => setShowGameOverOverlay(true)}
               className="fixed left-1/2 -translate-x-1/2 z-50 bg-[#333333] text-white px-6 py-3 rounded-full font-bold text-sm flex items-center gap-2 shadow-lg hover:bg-[#555555] transition-colors"
-            style={{ bottom: "max(2rem, env(safe-area-inset-bottom, 0px) + 0.5rem)" }}
+              style={{ bottom: "max(2rem, env(safe-area-inset-bottom, 0px) + 0.5rem)" }}
             >
               <Trophy className="w-4 h-4 text-yellow-400" />
               結果を見る
@@ -857,7 +1011,8 @@ export default function GamePage() {
 
           {showGameOverOverlay && (
             <div className="fixed inset-0 bg-black/45 backdrop-blur-sm flex items-center justify-center z-50 p-8">
-              <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-8 text-center">
+              {/* M1: celebrate-pop animation on board clear */}
+              <div className={`bg-white rounded-2xl shadow-2xl max-w-sm w-full p-8 text-center ${boardComplete ? 'animate-celebrate-pop' : ''}`}>
                 <Trophy className={`w-16 h-16 mx-auto mb-4 ${boardComplete ? 'text-yellow-500' : 'text-[#888888]'}`} />
                 <h1 className={`text-3xl font-black mb-1 ${boardComplete ? 'text-[#2e7d32]' : 'text-[#1e1e1e]'}`}>
                   {boardComplete ? "クリア！" : isStuck ? "手詰まり" : "時間切れ"}
@@ -866,7 +1021,7 @@ export default function GamePage() {
                   {boardComplete ? "Puzzle Complete" : isStuck ? "No Valid Moves" : "Time Expired"}
                 </p>
 
-                {/* C3: Explain which numbers are unplaceable */}
+                {/* Stuck reason */}
                 {isStuck && stuckNumbers.length > 0 && (
                   <div className="mb-5 bg-[#fff5f5] border border-[#feb2b2] rounded-xl px-4 py-3 text-sm text-left">
                     <p className="font-bold text-[#c53030] mb-1.5">置けなくなった数字:</p>
@@ -887,8 +1042,8 @@ export default function GamePage() {
                   </div>
                 )}
 
-                {/* Clear time & record (solo) */}
-                {boardComplete && configRef.current.mode === 'solo' && clearTime !== null && (
+                {/* Clear time & record */}
+                {boardComplete && (configRef.current.mode === 'solo' || configRef.current.mode === 'daily') && clearTime !== null && (
                   <div className="mb-5">
                     <div className="text-2xl font-black text-[#1e1e1e]">{fmtTime(clearTime)}</div>
                     <div className="text-xs text-[#888888] mt-0.5">クリアタイム</div>

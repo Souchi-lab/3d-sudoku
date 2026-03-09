@@ -29,6 +29,12 @@ interface HyperCubeProps {
     flashStartTime?: number;
     /** Position of the hint cell — blinks cyan to guide the player. */
     hintPos?: [number, number, number] | null;
+    /** Position of the most recently placed cell — plays a scale-pop animation. */
+    justPlacedPos?: [number, number, number] | null;
+    /** performance.now() timestamp when the last cell was placed (ms). */
+    justPlacedTime?: number;
+    /** Set of "i-j-k" keys for pre-filled initial hint cells (visually distinct). */
+    hintCellKeys?: Set<string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -46,6 +52,7 @@ const EMPTY_CELL_COLOR  = "#e8e8e8";
 const SELECTED_COLOR    = "#ff8c00";
 const LAST_PLACED_COLOR = "#2e7d32";
 const HINT_COLOR        = "#00e5ff";   // cyan hint blink
+const INITIAL_HINT_COLOR = "#f5a623"; // gold border for pre-filled cells
 
 // ---------------------------------------------------------------------------
 // Helper: is a cell on the active layer?
@@ -70,6 +77,10 @@ function CellBox({
     isFlashing,
     flashStartTime,
     isHint,
+    isJustPlaced,
+    justPlacedTime,
+    isHighlighted,
+    isInitialHint,
     onClick,
 }: {
     pos: [number, number, number];
@@ -80,6 +91,10 @@ function CellBox({
     isFlashing: boolean;
     flashStartTime: number;
     isHint: boolean;
+    isJustPlaced: boolean;
+    justPlacedTime: number;
+    isHighlighted: boolean;
+    isInitialHint: boolean;
     onClick: () => void;
 }) {
     const meshRef = useRef<THREE.Mesh>(null);
@@ -99,37 +114,60 @@ function CellBox({
     const emissiveIntensity = dimmed ? 0 : isSelected ? 0.6 : isLastPlaced ? 0.5 : 0.2;
     const emissive = isSelected ? SELECTED_COLOR : isLastPlaced ? LAST_PLACED_COLOR : color;
 
-    // Animate emissive/color for flash and hint effects
+    // Animate scale, emissive/color for flash, hint, scale-pop, and highlight
     useFrame(() => {
         if (!meshRef.current) return;
         const mat = meshRef.current.material as THREE.MeshStandardMaterial;
 
+        // 1. Scale-pop (H1): just-placed cell bounces 1.0 → 1.25 → 1.0 over 350ms
+        if (isJustPlaced && justPlacedTime > 0) {
+            const t = Math.min(1, (performance.now() - justPlacedTime) / 350);
+            if (t < 1) {
+                const s = t < 0.55
+                    ? 1 + (t / 0.55) * 0.25
+                    : 1.25 - ((t - 0.55) / 0.45) * 0.25;
+                meshRef.current.scale.set(s, s, s);
+            } else {
+                meshRef.current.scale.set(1, 1, 1);
+            }
+        } else {
+            meshRef.current.scale.set(1, 1, 1);
+        }
+
+        // 2. Flash burst animation
         if (isFlashing && flashStartTime > 0) {
             const elapsed = (performance.now() - flashStartTime) / 1000;
             if (elapsed < 1.4) {
-                // Decaying sine burst: 2.5 full pulses over 1.4s, fading out
                 const t = elapsed / 1.4;
                 const burst = Math.sin(t * Math.PI * 5) * Math.pow(1 - t, 0.5);
                 mat.emissiveIntensity = Math.max(emissiveIntensity, Math.max(0, burst) * 2.5 + 0.2);
                 mat.emissive.set("#ffffff");
+                mat.opacity = opacity;
                 return;
             }
-            // Animation done — fall through to restore
         }
 
+        // 3. Hint blink (cyan)
         if (isHint) {
-            // Blink at ~4 Hz
             const blink = (Math.sin((performance.now() / 250) * Math.PI) + 1) / 2;
             mat.emissiveIntensity = 0.4 + blink * 1.4;
             mat.emissive.set(HINT_COLOR);
             mat.color.set(HINT_COLOR);
+            mat.opacity = opacity;
             return;
         }
 
-        // Restore base material values
-        mat.emissiveIntensity = emissiveIntensity;
-        mat.emissive.set(emissive);
+        // 4. Restore base material + line-highlight boost (M5)
         mat.color.set(color);
+        if (isHighlighted && !isSelected && !dimmed) {
+            mat.emissive.set(value === null ? "#cccccc" : color);
+            mat.emissiveIntensity = emissiveIntensity + 0.2;
+            mat.opacity = value === null ? 0.30 : Math.min(0.95, opacity + 0.10);
+        } else {
+            mat.emissive.set(emissive);
+            mat.emissiveIntensity = emissiveIntensity;
+            mat.opacity = opacity;
+        }
     });
 
     return (
@@ -146,7 +184,7 @@ function CellBox({
                 emissive={emissive}
                 emissiveIntensity={emissiveIntensity}
                 roughness={0.6}
-                metalness={0.0}
+                metalness={isInitialHint ? 0.15 : 0.0}
             />
 
             {/* Number label — hidden when dimmed */}
@@ -163,7 +201,13 @@ function CellBox({
                 </Text>
             )}
 
-            {/* Edges — only for visible, active cells */}
+            {/* Edges */}
+            {isInitialHint && !dimmed && !isSelected && !isLastPlaced && (
+                <lineSegments>
+                    <edgesGeometry args={[new THREE.BoxGeometry(0.84, 0.84, 0.84)]} />
+                    <lineBasicMaterial color={INITIAL_HINT_COLOR} linewidth={1} />
+                </lineSegments>
+            )}
             {isLastPlaced && !dimmed && (
                 <lineSegments>
                     <edgesGeometry args={[new THREE.BoxGeometry(0.87, 0.87, 0.87)]} />
@@ -194,6 +238,7 @@ function Scene({
     isShaking,
     onCellClick,
     flashStartTime,
+    justPlacedTime,
 }: {
     cells: {
         pos: [number, number, number];
@@ -203,10 +248,14 @@ function Scene({
         dimmed: boolean;
         isFlashing: boolean;
         isHint: boolean;
+        isJustPlaced: boolean;
+        isHighlighted: boolean;
+        isInitialHint: boolean;
     }[];
     isShaking?: boolean;
     onCellClick: (pos: [number, number, number]) => void;
     flashStartTime: number;
+    justPlacedTime: number;
 }) {
     const groupRef = useRef<THREE.Group>(null);
 
@@ -233,6 +282,10 @@ function Scene({
                     isFlashing={cell.isFlashing}
                     flashStartTime={flashStartTime}
                     isHint={cell.isHint}
+                    isJustPlaced={cell.isJustPlaced}
+                    justPlacedTime={justPlacedTime}
+                    isHighlighted={cell.isHighlighted}
+                    isInitialHint={cell.isInitialHint}
                     onClick={() => onCellClick(cell.pos)}
                 />
             ))}
@@ -246,6 +299,7 @@ function Scene({
 export default function HyperCube({
     board, N, onCellClick, selectedPos, lastPlacedPos, isShaking, layerFilter,
     flashingCells, flashStartTime = 0, hintPos,
+    justPlacedPos, justPlacedTime = 0, hintCellKeys,
 }: HyperCubeProps) {
     const cells = useMemo(() => {
         const list = [];
@@ -272,12 +326,22 @@ export default function HyperCube({
                         isHint:
                             hintPos !== null && hintPos !== undefined &&
                             hintPos[0] === i && hintPos[1] === j && hintPos[2] === k,
+                        isJustPlaced:
+                            justPlacedPos !== null && justPlacedPos !== undefined &&
+                            justPlacedPos[0] === i && justPlacedPos[1] === j && justPlacedPos[2] === k,
+                        // M5: highlight cells sharing any axis with the selected cell
+                        isHighlighted:
+                            selectedPos !== null && selectedPos !== undefined &&
+                            !(selectedPos[0] === i && selectedPos[1] === j && selectedPos[2] === k) &&
+                            (selectedPos[0] === i || selectedPos[1] === j || selectedPos[2] === k),
+                        // H4: pre-filled initial hint cells
+                        isInitialHint: hintCellKeys ? hintCellKeys.has(key) : false,
                     });
                 }
             }
         }
         return list;
-    }, [board, N, selectedPos, lastPlacedPos, layerFilter, flashingCells, hintPos]);
+    }, [board, N, selectedPos, lastPlacedPos, layerFilter, flashingCells, hintPos, justPlacedPos, hintCellKeys]);
 
     return (
         <div
@@ -296,8 +360,9 @@ export default function HyperCube({
                     isShaking={isShaking}
                     onCellClick={onCellClick ?? (() => {})}
                     flashStartTime={flashStartTime}
+                    justPlacedTime={justPlacedTime}
                 />
-                <OrbitControls makeDefault />
+                <OrbitControls makeDefault enableDamping dampingFactor={0.1} />
             </Canvas>
         </div>
     );

@@ -186,6 +186,93 @@ export class SudokuEngine {
     return newBoard;
   }
 
+  private scrambleSeeded(rng: () => number): (number | null)[][][] {
+    const N = this.N;
+    const base: number[][][] = Array.from({ length: N }, () =>
+      Array.from({ length: N }, () => Array(N).fill(0))
+    );
+    for (let i = 0; i < N; i++)
+      for (let j = 0; j < N; j++)
+        for (let k = 0; k < N; k++)
+          base[i][j][k] = ((i + j + k) % N) + 1;
+
+    const repl = Array.from({ length: N }, (_, i) => i + 1);
+    for (let i = N - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [repl[i], repl[j]] = [repl[j], repl[i]];
+    }
+
+    const newBoard = this.createBoard(N);
+    for (let i = 0; i < N; i++)
+      for (let j = 0; j < N; j++)
+        for (let k = 0; k < N; k++)
+          newBoard[i][j][k] = repl[base[i][j][k] - 1];
+
+    return newBoard;
+  }
+
+  /**
+   * Deterministic PRNG — mulberry32 algorithm.
+   * Returns a function that yields floats in [0, 1).
+   */
+  static mulberry32(seed: number): () => number {
+    let s = seed >>> 0;
+    return function () {
+      s = (s + 0x6d2b79f5) >>> 0;
+      let t = Math.imul(s ^ (s >>> 15), 1 | s);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  /**
+   * Seeded variant of generateInitialHints — produces the same board every
+   * time the same seed is supplied.  Use today's date (YYYYMMDD) as the seed
+   * for the Daily Challenge mode.
+   */
+  public static generateInitialHintsSeeded(N: number, level: number, seed: number): Cell[] {
+    const rng = SudokuEngine.mulberry32(seed);
+    const target = Math.max(0, Math.floor((N * N * level) / 5));
+    if (target === 0) return [];
+
+    const solverEngine = new SudokuEngine(N);
+    const solved = solverEngine.scrambleSeeded(rng);
+
+    const positions: Position[] = [];
+    for (let i = 0; i < N; i++)
+      for (let j = 0; j < N; j++)
+        for (let k = 0; k < N; k++)
+          positions.push([i, j, k]);
+
+    for (let i = positions.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [positions[i], positions[j]] = [positions[j], positions[i]];
+    }
+
+    const hints: Cell[] = [];
+    const testEngine = new SudokuEngine(N);
+
+    for (const pos of positions) {
+      if (hints.length >= target) break;
+
+      const value = solved[pos[0]][pos[1]][pos[2]]!;
+      const trial = testEngine.clone();
+      trial.setPoint(pos, value);
+
+      let safe = true;
+      for (let n = 1; n <= N; n++) {
+        if (!trial.canPlaceNumber(n)) { safe = false; break; }
+      }
+
+      if (safe) {
+        testEngine.setPoint(pos, value);
+        hints.push({ pos, value });
+      }
+    }
+
+    return hints;
+  }
+
   /**
    * Generate initial hints for the given difficulty level.
    *

@@ -1,6 +1,10 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from "vitest";
-import { getBestTime, trySetBestTime, fmtTime } from "../bestTime";
+import {
+  getBestTime, trySetBestTime, fmtTime,
+  recordPlay, getStats,
+  getDailyStreak, updateDailyStreak,
+} from "../bestTime";
 
 describe("bestTime", () => {
   beforeEach(() => {
@@ -91,6 +95,80 @@ describe("bestTime", () => {
 
     it("handles zero minutes (sub-minute time) correctly", () => {
       expect(fmtTime(45)).toBe("0:45");
+    });
+  });
+
+  // ── recordPlay() + getStats() ─────────────────────────────────────────────
+
+  describe("recordPlay() + getStats()", () => {
+    it("starts with zero plays and clears", () => {
+      const s = getStats(3, 3);
+      expect(s.plays).toBe(0);
+      expect(s.clears).toBe(0);
+      expect(s.bestTime).toBeNull();
+    });
+
+    it("increments plays and clears correctly", () => {
+      recordPlay(3, 3, true);
+      recordPlay(3, 3, false);
+      recordPlay(3, 3, true);
+      const s = getStats(3, 3);
+      expect(s.plays).toBe(3);
+      expect(s.clears).toBe(2);
+    });
+
+    it("tracks stats independently per N/level", () => {
+      recordPlay(3, 3, true);
+      recordPlay(3, 4, false);
+      expect(getStats(3, 3).plays).toBe(1);
+      expect(getStats(3, 4).plays).toBe(1);
+      expect(getStats(3, 3).clears).toBe(1);
+      expect(getStats(3, 4).clears).toBe(0);
+    });
+
+    it("includes bestTime from localStorage", () => {
+      trySetBestTime(3, 3, 120);
+      recordPlay(3, 3, true);
+      expect(getStats(3, 3).bestTime).toBe(120);
+    });
+  });
+
+  // ── getDailyStreak() + updateDailyStreak() ────────────────────────────────
+
+  describe("getDailyStreak() + updateDailyStreak()", () => {
+    const STREAK_KEY = "sochiblocks-streak";
+
+    it("returns 0 when no streak is stored", () => {
+      expect(getDailyStreak()).toBe(0);
+    });
+
+    it("starts streak at 1 on first update", () => {
+      updateDailyStreak();
+      expect(getDailyStreak()).toBe(1);
+    });
+
+    it("idempotent: calling twice today keeps streak at 1", () => {
+      updateDailyStreak();
+      updateDailyStreak();
+      expect(getDailyStreak()).toBe(1);
+    });
+
+    it("increments streak when lastDate is yesterday", () => {
+      const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+      localStorage.setItem(STREAK_KEY, JSON.stringify({ lastDate: yesterday, count: 5 }));
+      updateDailyStreak();
+      expect(getDailyStreak()).toBe(6);
+    });
+
+    it("resets streak to 1 when lastDate is older than yesterday", () => {
+      localStorage.setItem(STREAK_KEY, JSON.stringify({ lastDate: "2020-01-01", count: 10 }));
+      updateDailyStreak();
+      expect(getDailyStreak()).toBe(1);
+    });
+
+    it("returns 0 after streak expires (lastDate older than yesterday)", () => {
+      localStorage.setItem(STREAK_KEY, JSON.stringify({ lastDate: "2020-01-01", count: 5 }));
+      expect(getDailyStreak()).toBe(0);
     });
   });
 });

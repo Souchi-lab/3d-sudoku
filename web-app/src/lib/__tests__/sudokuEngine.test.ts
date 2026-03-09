@@ -300,4 +300,62 @@ describe("SudokuEngine", () => {
       expect(copy.getBoard()[2][2][2]).toBe(3);
     });
   });
+
+  // ── mulberry32() ──────────────────────────────────────────────────────────
+
+  describe("mulberry32()", () => {
+    it("produces values in [0, 1)", () => {
+      const rng = SudokuEngine.mulberry32(42);
+      for (let i = 0; i < 100; i++) {
+        const v = rng();
+        expect(v).toBeGreaterThanOrEqual(0);
+        expect(v).toBeLessThan(1);
+      }
+    });
+
+    it("is deterministic: same seed produces same sequence", () => {
+      const rng1 = SudokuEngine.mulberry32(12345);
+      const rng2 = SudokuEngine.mulberry32(12345);
+      for (let i = 0; i < 20; i++) {
+        expect(rng1()).toBe(rng2());
+      }
+    });
+
+    it("produces different sequences for different seeds", () => {
+      const r1 = SudokuEngine.mulberry32(1)();
+      const r2 = SudokuEngine.mulberry32(2)();
+      expect(r1).not.toBe(r2);
+    });
+  });
+
+  // ── generateInitialHintsSeeded() ─────────────────────────────────────────
+
+  describe("generateInitialHintsSeeded()", () => {
+    it("returns the same hints for the same seed", () => {
+      const h1 = SudokuEngine.generateInitialHintsSeeded(3, 3, 20260309);
+      const h2 = SudokuEngine.generateInitialHintsSeeded(3, 3, 20260309);
+      expect(h1.map(h => `${h.pos}-${h.value}`)).toEqual(h2.map(h => `${h.pos}-${h.value}`));
+    });
+
+    it("returns different hints for different seeds", () => {
+      const h1 = SudokuEngine.generateInitialHintsSeeded(3, 3, 20260309);
+      const h2 = SudokuEngine.generateInitialHintsSeeded(3, 3, 20260310);
+      const k1 = h1.map(h => h.pos.join(",")).sort().join("|");
+      const k2 = h2.map(h => h.pos.join(",")).sort().join("|");
+      expect(k1).not.toBe(k2);
+    });
+
+    it("each seeded hint passes check() before placement", () => {
+      const hints = SudokuEngine.generateInitialHintsSeeded(3, 3, 99999);
+      const testEngine = new SudokuEngine(3);
+      for (const h of hints) {
+        expect(testEngine.check(h.pos, h.value).valid).toBe(true);
+        testEngine.setPoint(h.pos, h.value);
+      }
+    });
+
+    it("returns 0 hints at level 0 regardless of seed", () => {
+      expect(SudokuEngine.generateInitialHintsSeeded(3, 0, 42)).toHaveLength(0);
+    });
+  });
 });
