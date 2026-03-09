@@ -78,7 +78,7 @@ export default function RulesModal({ N, onClose }: RulesModalProps) {
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-[#f5f5f5] hover:bg-[#eeeeee] flex items-center justify-center text-[#666666] font-bold text-lg transition-colors"
+            className="w-10 h-10 rounded-lg bg-[#f5f5f5] hover:bg-[#eeeeee] flex items-center justify-center text-[#666666] font-bold text-lg transition-colors"
           >
             ✕
           </button>

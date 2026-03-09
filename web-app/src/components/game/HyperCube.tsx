@@ -280,11 +280,14 @@ export default function HyperCube({
     }, [board, N, selectedPos, lastPlacedPos, layerFilter, flashingCells, hintPos]);
 
     return (
-        <div className={`w-full h-[560px] bg-white rounded-xl overflow-hidden border transition-all duration-75 shadow-sm ${
-            isShaking
-                ? "border-[#e53e3e] shadow-[0_0_0_3px_rgba(229,62,62,0.15)]"
-                : "border-[#dddddd]"
-        }`}>
+        <div
+            style={{ touchAction: "none" }}
+            className={`w-full h-[min(560px,50svh)] bg-white rounded-xl overflow-hidden border transition-all duration-75 shadow-sm ${
+                isShaking
+                    ? "border-[#e53e3e] shadow-[0_0_0_3px_rgba(229,62,62,0.15)]"
+                    : "border-[#dddddd]"
+            }`}
+        >
             <Canvas camera={{ position: [5, 5, 5], fov: 45 }}>
                 <ambientLight intensity={1.4} />
                 <directionalLight position={[6, 8, 6]} intensity={0.6} />

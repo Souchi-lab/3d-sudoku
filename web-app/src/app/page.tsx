@@ -384,6 +384,13 @@ export default function GamePage() {
     }
   }, [selectedPos, currentNumber, currentPlayer, isCpuThinking, showHandoff, commitMove]);
 
+  // ── Body scroll lock when any overlay is open (iOS fixed-position fix) ───
+  useEffect(() => {
+    const locked = showGameOverOverlay || showRules || showHandoff;
+    document.body.style.overflow = locked ? "hidden" : "";
+    return () => { document.body.style.overflow = ""; };
+  }, [showGameOverOverlay, showRules, showHandoff]);
+
   // ── Keyboard shortcuts ────────────────────────────────────────────────────
   useEffect(() => {
     if (!gameMode) return;
@@ -415,7 +422,7 @@ export default function GamePage() {
     ];
 
     return (
-      <main className="min-h-screen bg-[#fcfcfc] flex items-center justify-center p-8">
+      <main className="min-h-dvh bg-[#fcfcfc] flex items-center justify-center p-6 md:p-8 pt-safe">
         <div className="max-w-3xl w-full space-y-8">
 
           {/* Brand header */}
@@ -527,11 +534,12 @@ export default function GamePage() {
     scores[2] > scores[1] ? p2Label : null;
 
   return (
-    <main className="min-h-screen bg-[#fcfcfc] font-sans">
+    <main className="min-h-dvh bg-[#fcfcfc] font-sans">
 
       {/* Header */}
-      <header className="bg-white border-b border-[#eeeeee] shadow-[0_1px_4px_rgba(0,0,0,0.06)]">
-        <div className="max-w-6xl mx-auto px-6 h-14 flex items-center gap-4">
+      {/* pt-safe covers iPhone notch / Dynamic Island */}
+      <header className="bg-white border-b border-[#eeeeee] shadow-[0_1px_4px_rgba(0,0,0,0.06)] pt-safe">
+        <div className="max-w-6xl mx-auto px-4 md:px-6 h-14 flex items-center gap-2 md:gap-4">
           <LightButton
             onClick={() => { gameActiveRef.current = false; setGameMode(null); }}
             className="px-4 py-1.5 text-sm"
@@ -608,7 +616,7 @@ export default function GamePage() {
       </div>
 
       {/* Main */}
-      <div className="max-w-6xl mx-auto px-6 py-8 grid grid-cols-1 lg:grid-cols-4 gap-8">
+      <div className="max-w-6xl mx-auto px-4 md:px-6 py-4 md:py-8 grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-8">
 
         {/* 3D cube */}
         <div className="lg:col-span-3 flex flex-col gap-6">
@@ -653,7 +661,7 @@ export default function GamePage() {
                       <button
                         key={ax}
                         onClick={() => setLayerFilter({ axis: ax, index: 0 })}
-                        className={`w-8 h-8 rounded-lg text-xs font-black border transition-colors ${
+                        className={`w-10 h-10 rounded-lg text-xs font-black border transition-colors ${
                           layerFilter.axis === ax
                             ? 'bg-[#333333] text-white border-[#333333]'
                             : 'bg-white text-[#666666] border-[#dddddd] hover:border-[#333333]'
@@ -670,7 +678,7 @@ export default function GamePage() {
                       <button
                         key={idx}
                         onClick={() => setLayerFilter(lf => lf ? { ...lf, index: idx } : null)}
-                        className={`w-8 h-8 rounded-lg text-xs font-bold border transition-colors ${
+                        className={`w-10 h-10 rounded-lg text-xs font-bold border transition-colors ${
                           layerFilter.index === idx
                             ? 'bg-[#333333] text-white border-[#333333]'
                             : 'bg-white text-[#666666] border-[#dddddd] hover:border-[#333333]'
@@ -839,7 +847,8 @@ export default function GamePage() {
           {!showGameOverOverlay && (
             <button
               onClick={() => setShowGameOverOverlay(true)}
-              className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 bg-[#333333] text-white px-6 py-3 rounded-full font-bold text-sm flex items-center gap-2 shadow-lg hover:bg-[#555555] transition-colors"
+              className="fixed left-1/2 -translate-x-1/2 z-50 bg-[#333333] text-white px-6 py-3 rounded-full font-bold text-sm flex items-center gap-2 shadow-lg hover:bg-[#555555] transition-colors"
+            style={{ bottom: "max(2rem, env(safe-area-inset-bottom, 0px) + 0.5rem)" }}
             >
               <Trophy className="w-4 h-4 text-yellow-400" />
               結果を見る
