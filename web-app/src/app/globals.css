@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+/* -----------------------------------------------------------------------
+   SoChi BLOCKS Design System — CSS Variables
+   ----------------------------------------------------------------------- */
+:root {
+  /* Backgrounds */
+  --color-bg:          #fcfcfc;
+  --color-surface:     #ffffff;
+  --color-surface-alt: #f5f5f5;
+
+  /* Text */
+  --color-text-main:   #1e1e1e;
+  --color-text-sec:    #666666;
+  --color-text-hint:   #888888;
+
+  /* Buttons */
+  --color-btn-dark:    #333333;
+  --color-btn-dark-h:  #555555;
+  --color-btn-light-b: #dddddd;
+
+  /* Feedback */
+  --color-error:       #e53e3e;
+  --color-error-bg:    #fff5f5;
+  --color-success:     #2e7d32;
+  --color-success-bg:  #e8f5e9;
+  --color-success-b:   #a5d6a7;
+  --color-help-bg:     #f0f4f8;
+  --color-help-text:   #2b6cb0;
+}
+
+/* Force light theme always */
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text-main);
+  font-family: Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Utility: SoChi button base */
+.btn-dark {
+  background: var(--color-btn-dark);
+  color: #ffffff;
+  border-radius: 8px;
+  font-weight: 700;
+  transition: background 0.15s;
+}
+.btn-dark:hover { background: var(--color-btn-dark-h); }
+
+.btn-light {
+  background: var(--color-surface);
+  color: var(--color-text-sec);
+  border: 1px solid var(--color-btn-light-b);
+  border-radius: 8px;
+  font-weight: 600;
+  transition: background 0.15s;
+}
+.btn-light:hover { background: var(--color-surface-alt); }
+
+/* Combo badge pop animation */
+@keyframes combo-pop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.55); }
+  70%  { transform: scale(0.88); }
+  100% { transform: scale(1); }
+}
+
+@utility animate-combo-pop {
+  animation: combo-pop 0.38s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
